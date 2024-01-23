@@ -169,6 +169,7 @@ cython_debug/
 # Folders
 tmp/
 data/
+input/
 
 # Other
 ~$*
