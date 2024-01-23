@@ -56,11 +56,11 @@ def get_articles(filename: str, offset) -> list[str]:
     return articles
 
 
-def create_db(toc, articles):
+def create_db(toc, articles, filename):
     for i, article in enumerate(articles):
         toc_entry = toc[i]
         title, source, date, _ = toc_entry
-        logger.info(f"Processing article {i}: '{title}', {source}, {date}")
+        logger.info(f"Processing article {i} in {filename}: '{title}', {source}, {date}")
 
         toc[i].append(article)  # append full text to toc entry
 
@@ -69,7 +69,7 @@ def create_db(toc, articles):
 
         # Log ERROR if headers length is less than 3
         if len(headers) < 3:
-            logger.error(f"Headers length is less than 3 in article {i}: '{title}', {source}, {date}")
+            logger.error(f"Header less than 3 rows: {filename.replace('.txt', '')}:{i} '{title}', {source}, {date}")
 
         # Strip non alphanumeric characters from title
         title = re.sub(r"\W+", " ", title).lower().strip()
@@ -139,9 +139,10 @@ def save_articles(output_folder, filename, df):
         source = df["source"][i]
         date = df["date_time"][i].strftime("%Y%m%d")
         media = df["media"][i]
-        article_filename = f"{source}_{date}_{media}.txt"
+        article_filename = f"{source}_{date}_{media}"
         article_filename = re.sub(r"\W+", "_", article_filename).lower().strip()
-        article_filename = f"{output_folder}/{article_filename}"
+        # FIXME: Add extension to filename after removing non-alphanumeric characters
+        article_filename = f"{output_folder}/{article_filename}.txt"
         with open(article_filename, "w", encoding="utf-8") as f:
             f.write(title + "\n\n")
             f.write(article_text)
@@ -154,20 +155,22 @@ def main(input_folder: str) -> None:
     output_folder = f"{input_folder}/output"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    logger.add(f"{output_folder}/log.txt", level="WARNING", encoding="utf8")
+    logger.add(f"{output_folder}/extract.log", level="WARNING", encoding="utf8", format="{message}")
 
     all_metadata = []  # List to store all metadata
 
     for filename in os.listdir(input_folder):
         if not filename.endswith(".txt"):
             continue
+        # logger.add(f"{output_folder}/{os.path.basename(filename)}.log", level="WARNING", encoding="utf8", format="{message}"    )
 
         filepath = f"{input_folder}/{filename}"
         toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
         articles = get_articles(filepath, offset)
-        df = create_db(toc, articles)
+        df = create_db(toc, articles, filename)
 
-        # Add 'input_file' column to the metadata DataFrame
+        # Add 'input_file' column to the metadata DataFrame.
+        # FIXME: Add 'input_file' in create_db to be able to use when logging errors
         df["input_file"] = filename
 
         metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
