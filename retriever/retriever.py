@@ -1,6 +1,7 @@
 # pylint: disable=redefined-outer-name
 import os
 import re
+import sys
 import typer
 
 # import openpyxl
@@ -56,11 +57,11 @@ def get_articles(filename: str, offset) -> list[str]:
     return articles
 
 
-def create_db(toc, articles, filename):
+def create_db(toc, articles):
     for i, article in enumerate(articles):
         toc_entry = toc[i]
         title, source, date, _ = toc_entry
-        logger.info(f"Processing article {i} in {filename}: '{title}', {source}, {date}")
+        logger.info(f"Processing article {i}: '{title}', {source}, {date}")
 
         toc[i].append(article)  # append full text to toc entry
 
@@ -69,7 +70,7 @@ def create_db(toc, articles, filename):
 
         # Log ERROR if headers length is less than 3
         if len(headers) < 3:
-            logger.error(f"Header less than 3 rows: {filename.replace('.txt', '')}:{i} '{title}', {source}, {date}")
+            logger.error(f"Headers length is less than 3 in article {i}: '{title}', {source}, {date}")
 
         # Strip non alphanumeric characters from title
         title = re.sub(r"\W+", " ", title).lower().strip()
@@ -112,7 +113,7 @@ def create_db(toc, articles, filename):
         toc[i].append(article)
 
     # articles to dataframe
-    columns = [
+    columns: list[str] = [
         "title",
         "source",
         "date",
@@ -125,7 +126,7 @@ def create_db(toc, articles, filename):
         "article_text",
     ]
     df = pd.DataFrame(toc, columns=columns)
-    df["date_time"] = pd.to_datetime(df["date"], format="ISO8601")
+    df["date_time"] = pd.to_datetime(df["date"], format="mixed")
 
     # Check for missing values
     if len(empty := df[df.drop(columns=["pages", "media"]).isnull().any(axis=1)]):
@@ -133,46 +134,40 @@ def create_db(toc, articles, filename):
     return df
 
 
-def save_articles(output_folder, filename, df):
-    for i, article_text in enumerate(df["article_text"]):
-        title = df["title"][i]
-        source = df["source"][i]
-        date = df["date_time"][i].strftime("%Y%m%d")
-        media = df["media"][i]
-        article_filename = f"{source}_{date}_{media}"
-        article_filename = re.sub(r"\W+", "_", article_filename).lower().strip()
-        # FIXME: Add extension to filename after removing non-alphanumeric characters
-        article_filename = f"{output_folder}/{article_filename}.txt"
-        with open(article_filename, "w", encoding="utf-8") as f:
-            f.write(title + "\n\n")
-            f.write(article_text)
-            # logger.debug(f"Saved article {i} to {article_filename}")
+def save_articles(output_folder, filename, df) -> None:
+
+    for _, metadata in df.iterrows():
+        with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
+            f.write(metadata['title'] + "\n\n")
+            f.write(metadata['article_text'])
 
     logger.success(f"Saved {len(df)} articles from '{filename}' to {output_folder}")
 
 
 def main(input_folder: str) -> None:
-    output_folder = f"{input_folder}/output"
+    output_folder: str = f"{input_folder}/output"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    logger.add(f"{output_folder}/extract.log", level="WARNING", encoding="utf8", format="{message}")
+    logger.add(f"{output_folder}/run.log", level="WARNING", encoding="utf8")
 
     all_metadata = []  # List to store all metadata
 
+    article_counts={}
     for filename in os.listdir(input_folder):
         if not filename.endswith(".txt"):
             continue
-        # logger.add(f"{output_folder}/{os.path.basename(filename)}.log", level="WARNING", encoding="utf8", format="{message}"    )
-
-        filepath = f"{input_folder}/{filename}"
+        filepath: str = f"{input_folder}/{filename}"
         toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
-        articles = get_articles(filepath, offset)
-        df = create_db(toc, articles, filename)
+        articles: list[str] = get_articles(filepath, offset)
+        df: pd.DataFrame = create_db(toc, articles)
 
-        # Add 'input_file' column to the metadata DataFrame.
-        # FIXME: Add 'input_file' in create_db to be able to use when logging errors
+        df['document_name'] = df.source.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip()
+        df['document_name'] = df.document_name + '_' + df.title.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip().str.strip('_').str[:60]
+        df['document_name'] = df.document_name + '_' + df.date.fillna('').str.replace(' ', '').str.replace(':', '').str.replace('-', '') + '_' + df.media.fillna('')
+        df['filename'] = df.document_name + ".txt"
+        df['year'] = df.date.fillna(0).str[:4].astype(int)
         df["input_file"] = filename
-
+        article_counts[filename] = len(df)
         metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
 
         # metadata_filename = filename.replace(".txt", "_metadata.xlsx")
@@ -185,11 +180,17 @@ def main(input_folder: str) -> None:
         save_articles(output_folder, filename, df)
 
     # Save all_metadata to excel
-    all_metadata_df = pd.concat(all_metadata, ignore_index=True)
-    all_metadata_df.to_excel(f"{output_folder}/metadata.xlsx", index=False)
+    document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
+    document_index.reset_index(drop=True, inplace=True)
+    document_index['document_id'] = document_index.index
+    # document_index.to_excel(f"{output_folder}/metadata.xlsx", index=False)
     # save to csv
-    all_metadata_df.to_csv(f"{output_folder}/metadata.csv", index=False, sep=";", encoding="utf-8-sig")
 
+    document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
 
+    print(article_counts)
 if __name__ == "__main__":
-    typer.run(main)
+    #typer.run(main)
+    logger.remove()
+    logger.add(sys.stderr, level='WARNING')
+    main("./input")
