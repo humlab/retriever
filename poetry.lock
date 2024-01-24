@@ -471,6 +471,17 @@ files = [
 ]
 
 [[package]]
+name = "roman"
+version = "4.1"
+description = "Integer to Roman numerals converter"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "roman-4.1-py3-none-any.whl", hash = "sha256:f131fd5eee3510f6173b825404eb97875a6c1925f73a2d7d48cfc67823a67c3c"},
+    {file = "roman-4.1.tar.gz", hash = "sha256:4da8a200529a730822a27f1704b3ac70bc907141d3bc558115fb8e36af13b412"},
+]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -552,4 +563,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "643c4b8628dac82469b93881e50fbef8f774de4c2b47f2c4074ce302d1f92379"
+content-hash = "4a29b59023f14164cb1eb690b892cf9f4d5dbf59af81d3eaa13ba41dd6f40124"
