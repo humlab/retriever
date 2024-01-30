@@ -182,9 +182,10 @@ def main(input_folder: str) -> None:
         df['year'] = df.date.fillna(0).str[:4].astype(int)
         df["input_file"] = filename
 
-        df["id"] = df.input_file.str.rsplit('_').str[-1].str.replace('.txt', '').apply(
-            lambda x: roman.fromRoman(x)
+        df['id'] = df.input_file.str.rsplit('_').str[-1].str.replace('.txt', '').apply(
+            roman.fromRoman
         ).astype(int).astype(str).str.zfill(3) + df.index.astype(str).str.zfill(3)
+
 
         article_counts[filename] = len(df)
         metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
