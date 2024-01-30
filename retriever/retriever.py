@@ -211,11 +211,13 @@ def main(input_folder: str) -> None:
     duplicates = document_index[
         document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
     ]
+    # pylint: disable=unnecessary-lambda
     duplicates = (
         duplicates.groupby(['document_name', 'source', 'date', 'media'])
         .agg({'url': [lambda x: ', '.join(x), 'count']})
         .reset_index()
     )
+    # pylint: enable=unnecessary-lambda
 
     duplicates.columns = ['_'.join(col).strip() if col[1] else col[0] for col in duplicates.columns.values]
     duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
