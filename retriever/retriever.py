@@ -2,11 +2,11 @@
 import os
 import re
 import sys
-import typer
-import roman
 
 # import openpyxl
 import pandas as pd
+import roman
+import typer
 from loguru import logger
 
 
@@ -139,7 +139,6 @@ def create_corpus(toc, articles):
 
 
 def save_articles(output_folder, filename, df) -> None:
-
     for _, metadata in df.iterrows():
         with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
             f.write(metadata['title'] + "\n\n")
@@ -156,7 +155,7 @@ def main(input_folder: str) -> None:
 
     all_metadata = []  # List to store all metadata
 
-    article_counts={}
+    article_counts = {}
     for filename in os.listdir(input_folder):
         if not filename.endswith(".txt"):
             continue
@@ -164,18 +163,28 @@ def main(input_folder: str) -> None:
         toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
         articles: list[str] = get_articles(filepath, offset)
 
-
         df: pd.DataFrame = create_corpus(toc, articles)
 
         df['document_name'] = df.source.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip()
-        df['document_name'] = df.document_name + '_' + df.title.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip().str.strip('_').str[:60]
-        df['document_name'] = df.document_name + '_' + df.date.fillna('').str.replace(' ', '').str.replace(':', '').str.replace('-', '') + '_' + df.media.fillna('')
+        df['document_name'] = (
+            df.document_name
+            + '_'
+            + df.title.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip().str.strip('_').str[:60]
+        )
+        df['document_name'] = (
+            df.document_name
+            + '_'
+            + df.date.fillna('').str.replace(' ', '').str.replace(':', '').str.replace('-', '')
+            + '_'
+            + df.media.fillna('')
+        )
         df['filename'] = df.document_name + ".txt"
         df['year'] = df.date.fillna(0).str[:4].astype(int)
         df["input_file"] = filename
 
-
-        df["id"] = df.input_file.str.rsplit('_').str[-1].str.replace('.txt', '').apply(lambda x: roman.fromRoman(x)).astype(int).astype(str).str.zfill(3) + df.index.astype(str).str.zfill(3)
+        df["id"] = df.input_file.str.rsplit('_').str[-1].str.replace('.txt', '').apply(
+            lambda x: roman.fromRoman(x)
+        ).astype(int).astype(str).str.zfill(3) + df.index.astype(str).str.zfill(3)
 
         article_counts[filename] = len(df)
         metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
@@ -199,9 +208,14 @@ def main(input_folder: str) -> None:
     # duplicates = document_index[document_index.duplicated(subset=['title', 'source', 'date', 'media'], keep=False)]
     # duplicates = duplicates.groupby(['title', 'source', 'date', 'media']).agg({'url':[lambda x: ', '.join(x), 'count']}).reset_index()
 
-    duplicates = document_index[document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)]
-    duplicates = duplicates.groupby(['document_name', 'source', 'date', 'media']).agg({'url':[lambda x: ', '.join(x), 'count']}).reset_index()
-
+    duplicates = document_index[
+        document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
+    ]
+    duplicates = (
+        duplicates.groupby(['document_name', 'source', 'date', 'media'])
+        .agg({'url': [lambda x: ', '.join(x), 'count']})
+        .reset_index()
+    )
 
     duplicates.columns = ['_'.join(col).strip() if col[1] else col[0] for col in duplicates.columns.values]
     duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
@@ -224,8 +238,9 @@ def main(input_folder: str) -> None:
     # print number of txt files in output folder
     print(f'Number of txt files in output folder: {len(os.listdir(output_folder))}')
 
+
 if __name__ == "__main__":
-    #typer.run(main)
+    # typer.run(main)
     logger.remove()
     logger.add(sys.stderr, level='WARNING')
     main("./input")
