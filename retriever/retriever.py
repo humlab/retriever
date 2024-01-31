@@ -35,9 +35,6 @@ def get_toc(filename, toc_name, max_not_matched_lines):
             if match:
                 title, source, date_str = match.groups()
                 date = date_str
-                # FIXME Warn duplicate entries
-                # if any(title in row for row in data):
-                #     logger.warning(f"Duplicate entry found in {filename} for '{title}', {source}, {date}")
                 data.append([title, source, date, toc_line_number])
                 # Reset not matched lines counter
                 not_matched_lines = 0
@@ -189,9 +186,6 @@ def main(input_folder: str) -> None:
         article_counts[filename] = len(df)
         metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
 
-        # metadata_filename = filename.replace(".txt", "_metadata.xlsx")
-        # metadata.to_excel(f"{output_folder}/{metadata_filename}", index=False)
-
         # Append metadata to the all_metadata list
         all_metadata.append(metadata)
 
@@ -204,11 +198,6 @@ def main(input_folder: str) -> None:
     document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
     document_index.reset_index(drop=True, inplace=True)
     document_index['document_id'] = document_index.index
-    # document_index.to_excel(f"{output_folder}/metadata.xlsx", index=False)
-
-    # Find duplicates
-    # duplicates = document_index[document_index.duplicated(subset=['title', 'source', 'date', 'media'], keep=False)]
-    # duplicates = duplicates.groupby(['title', 'source', 'date', 'media']).agg({'url':[lambda x: ', '.join(x), 'count']}).reset_index()
 
     duplicates = document_index[
         document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
@@ -221,34 +210,21 @@ def main(input_folder: str) -> None:
         .agg({'url': [lambda x: ', '.join(x), 'count']})
         .reset_index()
     )
-
     # pylint: enable=unnecessary-lambda
+
     duplicates.columns = ['_'.join(col).strip() if col[1] else col[0] for col in duplicates.columns.values]
     duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=True, sep=";", encoding="utf-8-sig")
-
 
     # Remove duplicates
     document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], inplace=True)
     logger.info(f"Removed {len(duplicates)} duplicates")
     logger.info(f'Unique articles: {len(document_index)}')
 
-
     # Save document_index to csv
     document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
 
-    # print(article_counts)
-    # print(sum(article_counts.values()))
-    # print(len(document_index))
-
-
-    # print(f'Number of articles (article_counts): {sum(article_counts.values())}')
-    # print(f'Number of unique articles: {len(document_index)}')
-    
-
-    # print number of files with txt extension in output folder
     logger.success(f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}')
-    # print(f'Number of files with txt extension in output folder: {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])}')
 
 
 if __name__ == "__main__":
