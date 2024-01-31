@@ -1,12 +1,11 @@
 # pylint: disable=redefined-outer-name
+import difflib
 import os
 import re
 import sys
 
-# import openpyxl
 import pandas as pd
 import roman
-import typer
 from loguru import logger
 
 
@@ -135,16 +134,6 @@ def create_corpus(toc, articles):
     return df
 
 
-def save_articles(output_folder, filename, df) -> None:
-    for _, metadata in df.iterrows():
-        with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
-            f.write(metadata['title'] + "\n\n")
-            f.write(metadata['article_text'])
-
-    logger.success(f"Saved {len(df)} articles from '{filename}' to {output_folder}")
-
-import difflib
-
 def log_diffs(duplicates: pd.DataFrame, output_folder: str):
 
     diff_folder = f"{output_folder}/diff"
@@ -152,7 +141,9 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str):
         os.makedirs(diff_folder)
 
     # Identify duplicates
-    diff_articles = duplicates[~duplicates.duplicated(subset=['document_name', 'source', 'date', 'media', 'article_text'], keep=False)]
+    diff_articles = duplicates[
+        ~duplicates.duplicated(subset=['document_name', 'source', 'date', 'media', 'article_text'], keep=False)
+    ]
 
     # Group the diff_articles
     grouped = diff_articles.groupby(['document_name', 'source', 'date', 'media'])
@@ -161,12 +152,13 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str):
     for name, group in grouped:
         texts = group['article_text'].tolist()
         for i in range(1, len(texts)):
-            diff = difflib.ndiff(texts[i-1].splitlines(), texts[i].splitlines())
+            diff = difflib.ndiff(texts[i - 1].splitlines(), texts[i].splitlines())
             diff_text = '\n'.join(diff)
             logger.info(f"Differences for {name}:\n{diff_text}")
             # save diff_text to file
             with open(f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i-1}.diff", "w", encoding="utf-8") as f:
                 f.write(diff_text)
+
 
 def main(input_folder: str) -> None:
     output_folder: str = f"{input_folder}/output"
@@ -208,15 +200,7 @@ def main(input_folder: str) -> None:
         ).astype(str).str.zfill(3) + df.index.astype(str).str.zfill(3)
 
         article_counts[filename] = len(df)
-        # metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
-
-        # Append metadata to the all_metadata list
-        # all_metadata.append(metadata)
-
         all_metadata.append(df)
-
-        # Save articles to txt files
-        # save_articles(output_folder, filename, df)
 
     logger.info(f'Found {sum(article_counts.values())} articles')
 
@@ -244,7 +228,6 @@ def main(input_folder: str) -> None:
     duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=True, sep=";", encoding="utf-8-sig")
 
-
     # Remove duplicates. Keep the last article.
     document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], keep='last', inplace=True)
     logger.info(f"Removed {len(duplicates)} duplicates")
@@ -255,12 +238,15 @@ def main(input_folder: str) -> None:
         with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
             f.write(metadata['title'] + "\n\n")
             f.write(metadata['article_text'])
-    logger.success(f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}')
+    logger.success(
+        f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}'
+    )
 
     # Save document_index to csv
     document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
     document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
     logger.success(f'Saved document_index to {output_folder}/document_index.csv')
+
 
 if __name__ == "__main__":
     # typer.run(main)
