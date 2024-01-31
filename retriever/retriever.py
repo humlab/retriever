@@ -47,7 +47,7 @@ def get_toc(filename, toc_name, max_not_matched_lines):
         if not_matched_lines > max_not_matched_lines:
             break
 
-    logger.info(f"Found {len(data)} articles in {filename}")
+    logger.debug(f"Found {len(data)} articles in {filename}")
 
     return data, toc_line_number  # "title", "source", "date", "toc_line_number"
 
@@ -65,7 +65,7 @@ def create_corpus(toc, articles):
     for i, article in enumerate(articles):
         toc_entry = toc[i]
         title, source, date, _ = toc_entry
-        logger.info(f"Processing article {i}: '{title}', {source}, {date}")
+        logger.debug(f"Processing article {i}: '{title}', {source}, {date}")
 
         toc[i].append(article)  # append full text to toc entry
 
@@ -198,6 +198,8 @@ def main(input_folder: str) -> None:
         # Save articles to txt files
         save_articles(output_folder, filename, df)
 
+    logger.info(f'Found {sum(article_counts.values())} articles')
+
     # Save all_metadata
     document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
     document_index.reset_index(drop=True, inplace=True)
@@ -211,38 +213,46 @@ def main(input_folder: str) -> None:
     duplicates = document_index[
         document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
     ]
+    # logger.info(f"Found {len(duplicates)} duplicates")
+
     # pylint: disable=unnecessary-lambda
     duplicates = (
         duplicates.groupby(['document_name', 'source', 'date', 'media'])
         .agg({'url': [lambda x: ', '.join(x), 'count']})
         .reset_index()
     )
-    # pylint: enable=unnecessary-lambda
 
+    # pylint: enable=unnecessary-lambda
     duplicates.columns = ['_'.join(col).strip() if col[1] else col[0] for col in duplicates.columns.values]
     duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=True, sep=";", encoding="utf-8-sig")
 
+
     # Remove duplicates
-    document_index.drop_duplicates(subset=['title', 'source', 'date', 'media'], inplace=True)
+    document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], inplace=True)
+    logger.info(f"Removed {len(duplicates)} duplicates")
+    logger.info(f'Unique articles: {len(document_index)}')
+
 
     # Save document_index to csv
     document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
 
-    print(article_counts)
-    print(sum(article_counts.values()))
-    print(len(document_index))
+    # print(article_counts)
+    # print(sum(article_counts.values()))
+    # print(len(document_index))
 
-    print(f'Number of articles (article_counts): {sum(article_counts.values())}')
-    print(f'Number of unique articles (document index): {len(document_index)}')
-    print(f'Number of duplicates: {len(duplicates)}')
 
-    # print number of txt files in output folder
-    print(f'Number of txt files in output folder: {len(os.listdir(output_folder))}')
+    # print(f'Number of articles (article_counts): {sum(article_counts.values())}')
+    # print(f'Number of unique articles: {len(document_index)}')
+    
+
+    # print number of files with txt extension in output folder
+    logger.success(f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}')
+    # print(f'Number of files with txt extension in output folder: {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])}')
 
 
 if __name__ == "__main__":
     # typer.run(main)
     logger.remove()
-    logger.add(sys.stderr, level='WARNING')
+    logger.add(sys.stderr, level='INFO')
     main("./input")
