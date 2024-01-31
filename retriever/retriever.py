@@ -65,6 +65,9 @@ def create_corpus(toc, articles):
 
         toc[i].append(article)  # append full text to toc entry
 
+        if len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")) < 3:
+            article = article.replace("\n\n", "\n", 1)
+
         headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
         toc[i].append("\n".join(headers))  # append header to toc entry
 
