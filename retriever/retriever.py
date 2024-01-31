@@ -143,6 +143,30 @@ def save_articles(output_folder, filename, df) -> None:
 
     logger.success(f"Saved {len(df)} articles from '{filename}' to {output_folder}")
 
+import difflib
+
+def log_diffs(duplicates: pd.DataFrame, output_folder: str):
+
+    diff_folder = f"{output_folder}/diff"
+    if not os.path.exists(diff_folder):
+        os.makedirs(diff_folder)
+
+    # Identify duplicates
+    diff_articles = duplicates[~duplicates.duplicated(subset=['document_name', 'source', 'date', 'media', 'article_text'], keep=False)]
+
+    # Group the diff_articles
+    grouped = diff_articles.groupby(['document_name', 'source', 'date', 'media'])
+
+    # For each group of diff_articles, compare the 'article_text'
+    for name, group in grouped:
+        texts = group['article_text'].tolist()
+        for i in range(1, len(texts)):
+            diff = difflib.ndiff(texts[i-1].splitlines(), texts[i].splitlines())
+            diff_text = '\n'.join(diff)
+            logger.info(f"Differences for {name}:\n{diff_text}")
+            # save diff_text to file
+            with open(f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i-1}.diff", "w", encoding="utf-8") as f:
+                f.write(diff_text)
 
 def main(input_folder: str) -> None:
     output_folder: str = f"{input_folder}/output"
@@ -184,13 +208,15 @@ def main(input_folder: str) -> None:
         ).astype(str).str.zfill(3) + df.index.astype(str).str.zfill(3)
 
         article_counts[filename] = len(df)
-        metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
+        # metadata = df.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
 
         # Append metadata to the all_metadata list
-        all_metadata.append(metadata)
+        # all_metadata.append(metadata)
+
+        all_metadata.append(df)
 
         # Save articles to txt files
-        save_articles(output_folder, filename, df)
+        # save_articles(output_folder, filename, df)
 
     logger.info(f'Found {sum(article_counts.values())} articles')
 
@@ -202,7 +228,9 @@ def main(input_folder: str) -> None:
     duplicates = document_index[
         document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
     ]
-    # logger.info(f"Found {len(duplicates)} duplicates")
+    logger.info(f"Found {len(duplicates)} non-unique articles")
+
+    log_diffs(duplicates, output_folder)
 
     # pylint: disable=unnecessary-lambda
     duplicates = (
@@ -216,16 +244,23 @@ def main(input_folder: str) -> None:
     duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=True, sep=";", encoding="utf-8-sig")
 
-    # Remove duplicates
-    document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], inplace=True)
+
+    # Remove duplicates. Keep the last article.
+    document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], keep='last', inplace=True)
     logger.info(f"Removed {len(duplicates)} duplicates")
-    logger.info(f'Unique articles: {len(document_index)}')
+    logger.info(f'Saving {len(document_index)} unique articles')
 
-    # Save document_index to csv
-    document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
-
+    # Save articles to txt files
+    for _, metadata in document_index.iterrows():
+        with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
+            f.write(metadata['title'] + "\n\n")
+            f.write(metadata['article_text'])
     logger.success(f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}')
 
+    # Save document_index to csv
+    document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
+    document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
+    logger.success(f'Saved document_index to {output_folder}/document_index.csv')
 
 if __name__ == "__main__":
     # typer.run(main)
