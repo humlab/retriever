@@ -32,10 +32,15 @@ target-version = ["py311"]
 
 [tool.mypy]
 python_version = "3.11"
+disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = 'tests.*'
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "roman.*"
+ignore_missing_imports = true
 
 [tool.isort]
 profile = "black"
