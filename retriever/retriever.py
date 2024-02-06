@@ -138,10 +138,10 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
     return df
 
 
-def log_diffs(duplicates: pd.DataFrame, output_folder: str) -> None:
+def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = True) -> None:
 
     diff_folder = f"{output_folder}/diff"
-    if not os.path.exists(diff_folder):
+    if save_diffs and not os.path.exists(diff_folder):
         os.makedirs(diff_folder)
 
     # Identify duplicates
@@ -160,8 +160,11 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str) -> None:
             diff_text = '\n'.join(diff)
             logger.info(f"Differences for {name}:\n{diff_text}")
             # save diff_text to file
-            with open(f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i-1}.diff", "w", encoding="utf-8") as f:
-                f.write(diff_text)
+            if save_diffs:
+                with open(
+                    f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i-1}.diff", "w", encoding="utf-8"
+                ) as f:
+                    f.write(diff_text)
 
 
 def main(input_folder: str) -> None:
@@ -208,24 +211,27 @@ def main(input_folder: str) -> None:
 
     logger.info(f'Found {sum(article_counts.values())} articles')
 
-    # Save all_metadata
+    # Combine metadata
     document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
     document_index.reset_index(drop=True, inplace=True)
     document_index['document_id'] = document_index.index
 
+    # Check for duplicates
     duplicates: pd.DataFrame = document_index[
         document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
     ]
     logger.info(f"Found {len(duplicates)} non-unique articles")
 
-    log_diffs(duplicates, output_folder)
+    # Log differences between duplicates
+    log_diffs(duplicates, output_folder, save_diffs=False)
 
+    # Save duplicates to csv
     duplicates = (
         duplicates.groupby(['document_name', 'source', 'date', 'media'])
         .agg(urls=('url', lambda x: ', '.join(x)), count=('url', 'count'))  # pylint: disable=unnecessary-lambda
         .reset_index()
     )
-    duplicates.to_csv(f"{output_folder}/duplicates.csv", index=True, sep=";", encoding="utf-8-sig")
+    duplicates.to_csv(f"{output_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
 
     # Remove duplicates. Keep the last article.
     document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], keep='last', inplace=True)
