@@ -3,13 +3,14 @@ import difflib
 import os
 import re
 import sys
+from typing import Any
 
 import pandas as pd
 import roman
 from loguru import logger
 
 
-def get_toc(filename, toc_name, max_not_matched_lines):
+def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[list[list[int | str | Any]], int]:
     data = []
     with open(filename, "r", encoding="utf-8") as file:
         lines = file.readlines()
@@ -48,7 +49,7 @@ def get_toc(filename, toc_name, max_not_matched_lines):
     return data, toc_line_number  # "title", "source", "date", "toc_line_number"
 
 
-def get_articles(filename: str, offset) -> list[str]:
+def get_articles(filename: str, offset: int) -> list[str]:
     with open(filename, "r", encoding="utf-8") as file:
         data = "".join(file.readlines()[offset - 1 :])
     articles = data.split("==============================================================================")
@@ -57,7 +58,7 @@ def get_articles(filename: str, offset) -> list[str]:
     return articles
 
 
-def create_corpus(toc, articles):
+def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.DataFrame:
     for i, article in enumerate(articles):
         toc_entry = toc[i]
         title, source, date, _ = toc_entry
@@ -76,8 +77,8 @@ def create_corpus(toc, articles):
             logger.error(f"Headers length is less than 3 in article {i}: '{title}', {source}, {date}")
 
         # Strip non alphanumeric characters from title
-        title = re.sub(r"\W+", " ", title).lower().strip()
-        toc_title = re.sub(r"\W+", " ", toc[i][0]).lower().strip()
+        title = re.sub(r"\W+", " ", str(title)).lower().strip()
+        toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
         assert toc_title.startswith(title), f"toc_title: {toc_title}, title: {title}"
 
         media = headers[-1] if headers[-1].startswith("Publicerat") else None
@@ -137,7 +138,7 @@ def create_corpus(toc, articles):
     return df
 
 
-def log_diffs(duplicates: pd.DataFrame, output_folder: str):
+def log_diffs(duplicates: pd.DataFrame, output_folder: str) -> None:
 
     diff_folder = f"{output_folder}/diff"
     if not os.path.exists(diff_folder):
@@ -212,23 +213,18 @@ def main(input_folder: str) -> None:
     document_index.reset_index(drop=True, inplace=True)
     document_index['document_id'] = document_index.index
 
-    duplicates = document_index[
+    duplicates: pd.DataFrame = document_index[
         document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
     ]
     logger.info(f"Found {len(duplicates)} non-unique articles")
 
     log_diffs(duplicates, output_folder)
 
-    # pylint: disable=unnecessary-lambda
     duplicates = (
         duplicates.groupby(['document_name', 'source', 'date', 'media'])
-        .agg({'url': [lambda x: ', '.join(x), 'count']})
+        .agg(urls=('url', lambda x: ', '.join(x)), count=('url', 'count'))  # pylint: disable=unnecessary-lambda
         .reset_index()
     )
-    # pylint: enable=unnecessary-lambda
-
-    duplicates.columns = ['_'.join(col).strip() if col[1] else col[0] for col in duplicates.columns.values]
-    duplicates = duplicates.rename(columns={'url_<lambda_0>': 'urls', 'url_count': 'count'})
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=True, sep=";", encoding="utf-8-sig")
 
     # Remove duplicates. Keep the last article.
