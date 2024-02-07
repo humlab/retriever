@@ -66,8 +66,9 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
         toc[i].append(article)  # append full text to toc entry
 
-        if len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")) < 3:
+        if (header_lenght:= len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
             article = article.replace("\n\n", "\n", 1)
+        toc[i].append(header_lenght)
 
         headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
         toc[i].append("\n".join(headers))  # append header to toc entry
@@ -123,6 +124,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         "date",
         "toc_line_number",
         "full_text",
+        "header_lenght",
         "header",
         "media",
         "pages",
@@ -167,7 +169,7 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
                     f.write(diff_text)
 
 
-def main(input_folder: str) -> None:
+def main(input_folder: str, save_short_headers: bool = False) -> None:
     output_folder: str = f"{input_folder}/output"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -247,8 +249,21 @@ def main(input_folder: str) -> None:
         f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}'
     )
 
+    # save articles with header_lenght < 3 to txt files in subfolder "short_headers"
+    if save_short_headers:
+        short_headers_folder = f"{output_folder}/short_headers"
+        if not os.path.exists(short_headers_folder):
+            os.makedirs(short_headers_folder)
+        short_headers = document_index[document_index.header_lenght < 3]
+        for _, metadata in short_headers.iterrows():
+            with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
+                f.write(metadata['title'] + "\n\n")
+                f.write(metadata['article_text'])
+        logger.success(
+            f'Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith(".txt")])} articles with short headers to {short_headers_folder}')
+
     # Save document_index to csv
-    document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
+    document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
     document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
     logger.success(f'Saved document_index to {output_folder}/document_index.csv')
 
@@ -257,4 +272,4 @@ if __name__ == "__main__":
     # typer.run(main)
     logger.remove()
     logger.add(sys.stderr, level='INFO')
-    main("./input")
+    main("./input", save_short_headers=False)
