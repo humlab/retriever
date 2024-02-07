@@ -66,7 +66,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
         toc[i].append(article)  # append full text to toc entry
 
-        if (header_lenght:= len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
+        if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
             article = article.replace("\n\n", "\n", 1)
         toc[i].append(header_lenght)
 
@@ -260,10 +260,13 @@ def main(input_folder: str, save_short_headers: bool = False) -> None:
                 f.write(metadata['title'] + "\n\n")
                 f.write(metadata['article_text'])
         logger.success(
-            f'Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith(".txt")])} articles with short headers to {short_headers_folder}')
+            f'Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith(".txt")])} articles with short headers to {short_headers_folder}'
+        )
 
     # Save document_index to csv
-    document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
+    document_index = document_index.drop(
+        columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"]
+    )
     document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
     logger.success(f'Saved document_index to {output_folder}/document_index.csv')
 
