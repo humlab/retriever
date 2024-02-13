@@ -13,7 +13,6 @@ openpyxl = "^3.1.2"
 typer = "^0.9.0"
 roman = "^4.1"
 
-
 [tool.poetry.group.dev.dependencies]
 isort = "^5.12.0"
 black = "^24.1.1"
@@ -48,8 +47,6 @@ line_length = 120
 py_version = "auto"
 float_to_top = true
 src_paths = [ "proceedings_ml", "tests" ]
-
-
 
 [tool.pylint.main]
 exit-zero = true
@@ -106,3 +103,8 @@ never-returning-functions = ["sys.exit", "argparse.parse_error"]
 [tool.pylint.reports]
 output-format = "colorized"
 score = false
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    'ignore:\nPyarrow:DeprecationWarning'
+]
