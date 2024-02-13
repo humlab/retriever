@@ -72,6 +72,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
             logger.info(f"Removed empty line from header in article {i}")
         toc[i].append(header_lenght)
 
+        # Extract headers from article
         headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
         toc[i].append("\n".join(headers))  # append header to toc entry
 
