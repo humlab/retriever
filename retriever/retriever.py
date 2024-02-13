@@ -11,6 +11,16 @@ from loguru import logger
 
 
 def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[list[list[int | str | Any]], int]:
+    """Extracts the table of contents from a Retriever export file.
+
+    Args:
+        filename (str): Input file.
+        toc_name (str): Name of the table of contents.
+        max_not_matched_lines (int): Number of lines not starting with '>' to read before breaking.
+
+    Returns:
+        tuple[list[list[int | str | Any]], int]: Table of contents and offset.
+    """
     data = []
     with open(filename, "r", encoding="utf-8") as file:
         lines = file.readlines()
@@ -50,6 +60,15 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
 
 
 def get_articles(filename: str, offset: int) -> list[str]:
+    """Extracts the articles from a Retriever export file.
+
+    Args:
+        filename (str): Input file.
+        offset (int): The line number to start reading from.
+
+    Returns:
+        list[str]: List of articles.
+    """
     with open(filename, "r", encoding="utf-8") as file:
         data = "".join(file.readlines()[offset - 1 :])
     articles = data.split("==============================================================================")
@@ -59,6 +78,15 @@ def get_articles(filename: str, offset: int) -> list[str]:
 
 
 def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.DataFrame:
+    """Create a corpus from the table of contents and articles.
+
+    Args:
+        toc (list[list[int  |  str  |  Any]]): Table of contents.
+        articles (list[str]): List of articles.
+
+    Returns:
+        pd.DataFrame: Corpus.
+    """
     for i, article in enumerate(articles):
         toc_entry = toc[i]
         title, source, date, _ = toc_entry
@@ -149,6 +177,13 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
 
 def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = True) -> None:
+    """Log differences between duplicates.
+
+    Args:
+        duplicates (pd.DataFrame): DataFrame with duplicates.
+        output_folder (str): Output folder.
+        save_diffs (bool, optional): Save differences to file. Defaults to True.
+    """
 
     diff_folder = f"{output_folder}/diff"
     if save_diffs and not os.path.exists(diff_folder):
@@ -178,6 +213,12 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
 
 
 def main(input_folder: str, save_short_headers: bool = False) -> None:
+    """Main function.
+
+    Args:
+        input_folder (str): Input folder.
+        save_short_headers (bool, optional): Save files with short headers. Defaults to False.
+    """
     output_folder: str = f"{input_folder}/output"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
