@@ -66,8 +66,10 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
         toc[i].append(article)  # append full text to toc entry
 
+        # Remove empty line from header
         if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
             article = article.replace("\n\n", "\n", 1)
+            logger.info(f"Removed empty line from header in article {i}")
         toc[i].append(header_lenght)
 
         headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
@@ -82,20 +84,25 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
         assert toc_title.startswith(title), f"toc_title: {toc_title}, title: {title}"
 
+        # Extract media from headers
         media = headers[-1] if headers[-1].startswith("Publicerat") else None
         if media:
             media = "webb" if "webb" in media else "print"
         toc[i].append(media)
         logger.debug(f"Extracted media '{media}' from article {i}")
 
+        # Extract pages from headers
         pages = headers[-2].split(" ")[1] if len(headers) >= 3 and headers[-2].startswith("Sida") else None
         toc[i].append(pages)
         logger.debug(f"Extracted pages '{pages}' from article {i}")
 
+        # Extract url from article
         m = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
         url = m.groups()[0] if m else None
         toc[i].append(url)
         logger.debug(f"Extracted url '{url}' from article {i}")
+
+        # Remove url from article
         article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", article).strip()
 
         # TODO: Save captions to separate column
