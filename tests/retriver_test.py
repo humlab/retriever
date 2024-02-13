@@ -101,7 +101,7 @@ def fixture_duplicates():
         {
             'title': {0: 'Title', 1: 'Title'},
             'source': {0: 'Source', 1: 'Source'},
-            'date': {0: '2020-12-04 05:26', 1: '2020-12-04 05:26'},
+            'date': {0: '2020-12-04', 1: '2020-12-04'},
             'toc_line_number': {0: 6, 1: 8},
             'full_text': {
                 0: 'Title\nSource, 2020-12-04 05:26\nPublicerat på webb.\n\nText.',
@@ -133,9 +133,21 @@ def test_log_diffs(caplog, duplicates, tmp_path):
     assert caplog.text
 
     expected_output = (
-        "Differences for ('Document_20201204_webb', 'Source', '2020-12-04 05:26', 'webb'):\n- Text.\n+ nDifferent text."
+        "Differences for ('Document_20201204_webb', 'Source', '2020-12-04', 'webb'):\n- Text.\n+ nDifferent text."
     )
 
     assert 'INFO' in caplog.text
     assert caplog.text.count('INFO') == 1
     assert expected_output in caplog.text
+
+
+def test_log_diffs_save_diffs(duplicates, tmp_path):
+    log_diffs(duplicates, output_folder=tmp_path, save_diffs=True)
+
+    expected_output = {
+        'filename': 'Document_20201204_webb_Source_2020-12-04_webb_0.diff',
+        'content': '- Text.\n+ nDifferent text.',
+    }
+
+    with open(tmp_path / 'diff' / expected_output['filename'], 'r', encoding='utf-8') as file:
+        assert file.read() == expected_output['content']
