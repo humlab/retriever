@@ -88,48 +88,30 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         pd.DataFrame: Corpus.
     """
     for i, article in enumerate(articles):
-        toc_entry = toc[i]
-        title, source, date, _ = toc_entry
+        title, source, date, _ = toc[i]
         logger.debug(f"Processing article {i}: '{title}', {source}, {date}")
 
         toc[i].append(article)  # append full text to toc entry
 
         # Remove empty line from header
-        if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
-            article = article.replace("\n\n", "\n", 1)
-            logger.info(f"Removed empty line from header in article {i}")
+        article, header_lenght = fix_header(article)
+
         toc[i].append(header_lenght)
 
         # Extract headers from article
-        headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
-        toc[i].append("\n".join(headers))  # append header to toc entry
+        headers = extract_headers(toc, i, article, title, source, date)
 
-        # Log ERROR if headers length is less than 3
-        if len(headers) < 3:
-            logger.error(f"Headers length is less than 3 in article {i}: '{title}', {source}, {date}")
-
-        # Strip non alphanumeric characters from title
-        title = re.sub(r"\W+", " ", str(title)).lower().strip()
-        toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
-        assert toc_title.startswith(title), f"toc_title: {toc_title}, title: {title}"
+        # Check that the title in the toc matches the title in the article
+        check_title(toc, i, article)
 
         # Extract media from headers
-        media = headers[-1] if headers[-1].startswith("Publicerat") else None
-        if media:
-            media = "webb" if "webb" in media else "print"
-        toc[i].append(media)
-        logger.debug(f"Extracted media '{media}' from article {i}")
+        extract_media(toc, i, headers)
 
         # Extract pages from headers
-        pages = headers[-2].split(" ")[1] if len(headers) >= 3 and headers[-2].startswith("Sida") else None
-        toc[i].append(pages)
-        logger.debug(f"Extracted pages '{pages}' from article {i}")
+        extract_pages(toc, i, headers)
 
         # Extract url from article
-        m = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
-        url = m.groups()[0] if m else None
-        toc[i].append(url)
-        logger.debug(f"Extracted url '{url}' from article {i}")
+        extract_url(toc, i, article)
 
         # Remove url from article
         article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", article).strip()
@@ -167,13 +149,57 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         "url",
         "article_text",
     ]
-    df = pd.DataFrame(toc, columns=columns)
-    df["date_time"] = pd.to_datetime(df["date"], format="mixed")
+    corpus = pd.DataFrame(toc, columns=columns)
+    corpus["date_time"] = pd.to_datetime(corpus["date"], format="mixed")
 
     # Check for missing values
-    if len(empty := df[df.drop(columns=["pages", "media"]).isnull().any(axis=1)]):
+    if len(empty := corpus[corpus.drop(columns=["pages", "media"]).isnull().any(axis=1)]):
         logger.info(f"Missing values in df:\n{empty}")
-    return df
+    return corpus
+
+
+def check_title(toc, i, article):
+    article_title = re.sub(r"\W+", " ", str(article.split("\n", maxsplit=1)[0].strip())).lower().strip()
+    toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
+    assert toc_title.startswith(article_title[:25])
+
+
+def extract_headers(toc, i, article, title, source, date):
+    headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
+    toc[i].append("\n".join(headers))  # append header to toc entry
+
+    # Log ERROR if headers length is less than 3
+    if len(headers) < 3:
+        logger.error(f"Headers length is less than 3 in article {i}: '{title}', {source}, {date}")
+    return headers
+
+
+def extract_url(toc, i, article):
+    m = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
+    url = m.groups()[0] if m else None
+    toc[i].append(url)
+    logger.debug(f"Extracted url '{url}' from article {i}")
+
+
+def extract_pages(toc, i, headers):
+    pages = headers[-2].split(" ")[1] if len(headers) >= 3 and headers[-2].startswith("Sida") else None
+    toc[i].append(pages)
+    logger.debug(f"Extracted pages '{pages}' from article {i}")
+
+
+def extract_media(toc, i, headers):
+    media = headers[-1] if headers[-1].startswith("Publicerat") else None
+    if media:
+        media = "webb" if "webb" in media else "print"
+    toc[i].append(media)
+    logger.debug(f"Extracted media '{media}' from article {i}")
+
+
+def fix_header(article):
+    if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
+        article = article.replace("\n\n", "\n", 1)
+        logger.info("Removed empty line from header")
+    return article, header_lenght
 
 
 def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = True) -> None:
