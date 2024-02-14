@@ -77,7 +77,13 @@ def get_articles(filename: str, offset: int) -> list[str]:
     return articles
 
 
-def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.DataFrame:
+def create_corpus(
+    toc: list[list[int | str | Any]],
+    articles: list[str],
+    remove_stop_words: bool = True,
+    stop_words: str = "Bildtext|Image-text|Pressbild|Snabbversion",
+    remove_captions: bool = True,
+) -> pd.DataFrame:
     """Create a corpus from the table of contents and articles.
 
     Args:
@@ -109,14 +115,9 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         # Remove url from article
         article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", article).strip()
 
-        # TODO: Save captions to separate column
-        stop_words = "Bildtext|Image-text|Pressbild|Snabbversion"
-        logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}' from article {i}")
-        article = re.sub(rf"({stop_words}):\s?", "", article).strip()
+        article = remove_stop_words_from_article(article, stop_words) if remove_stop_words else article
 
-        # FIXME: Does not remove if there is a new line between Bild: and [Name]
-        logger.debug(f"Removing captions like 'Bild: [Name [Name]]' from article {i}")
-        article = re.sub(r"Bild: ([A-Z][a-z]+(?: [A-Z][a-z]+)*)(/TT)?\s?", "", article).strip()
+        article = remove_captions_from_article(article) if remove_captions else article
 
         # TODO: Only look at the end of the article text
         logger.debug(f"Removing copyright string from article {i}")
@@ -126,6 +127,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
         logger.debug(f"Removing header from article {i}")
         article = article[article.find("\n\n") :].strip()
+
         toc[i].append(article)
 
     # articles to dataframe
@@ -149,6 +151,18 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
     if len(empty := corpus[corpus.drop(columns=["pages", "media"]).isnull().any(axis=1)]):
         logger.info(f"Missing values in df:\n{empty}")
     return corpus
+
+
+def remove_captions_from_article(article: str) -> str:
+    logger.debug("Removing captions like 'Bild: [Name [Name]]'")
+    article = re.sub(r"Bild: ([A-Z][a-z]+(?: [A-Z][a-z]+)*)(/TT)?\s?", "", article).strip()
+    return article
+
+
+def remove_stop_words_from_article(article: str, stop_words: str) -> str:
+    logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
+    article = re.sub(rf"({stop_words}):\s?", "", article).strip()
+    return article
 
 
 def check_title(toc: list[list[int | str | Any]], i: int, article: str) -> None:
@@ -249,7 +263,6 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
         output_folder (str): Output folder.
         save_diffs (bool, optional): Save differences to file. Defaults to True.
     """
-
     diff_folder = f"{output_folder}/diff"
     if save_diffs and not os.path.exists(diff_folder):
         os.makedirs(diff_folder)
