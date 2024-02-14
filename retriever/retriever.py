@@ -137,7 +137,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         # TODO: Save captions to separate column
         stop_words = "Bildtext|Image-text|Pressbild|Snabbversion"
         logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}' from article {i}")
-        article = re.sub(r"(Bildtext|Image-text|Pressbild|Snabbversion):\s?", "", article).strip()
+        article = re.sub(rf"({stop_words}):\s?", "", article).strip()
 
         # FIXME: Does not remove if there is a new line between Bild: and [Name]
         logger.debug(f"Removing captions like 'Bild: [Name [Name]]' from article {i}")
