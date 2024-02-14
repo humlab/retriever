@@ -88,8 +88,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         pd.DataFrame: Corpus.
     """
     for i, article in enumerate(articles):
-        title, source, date, _ = toc[i]
-        logger.debug(f"Processing article {i}: '{title}', {source}, {date}")
+        logger.debug(f"Processing article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][2]}")
 
         toc[i].append(article)  # append full text to toc entry
 
@@ -99,7 +98,7 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
         toc[i].append(header_lenght)
 
         # Extract headers from article
-        headers = extract_headers(toc, i, article, title, source, date)
+        headers = extract_headers(toc, i, article)
 
         # Check that the title in the toc matches the title in the article
         check_title(toc, i, article)
@@ -158,36 +157,36 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
     return corpus
 
 
-def check_title(toc, i, article):
+def check_title(toc: list[list[int | str | Any]], i: int, article: str) -> None:
     article_title = re.sub(r"\W+", " ", str(article.split("\n", maxsplit=1)[0].strip())).lower().strip()
     toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
     assert toc_title.startswith(article_title[:25])
 
 
-def extract_headers(toc, i, article, title, source, date):
+def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> list[str]:
     headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
     toc[i].append("\n".join(headers))  # append header to toc entry
 
     # Log ERROR if headers length is less than 3
     if len(headers) < 3:
-        logger.error(f"Headers length is less than 3 in article {i}: '{title}', {source}, {date}")
+        logger.error(f"Headers length is less than 3 in article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][0]}")
     return headers
 
 
-def extract_url(toc, i, article):
+def extract_url(toc: list[list[int | str | Any]], i: int, article: str) -> None:
     m = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
     url = m.groups()[0] if m else None
     toc[i].append(url)
     logger.debug(f"Extracted url '{url}' from article {i}")
 
 
-def extract_pages(toc, i, headers):
+def extract_pages(toc: list[list[int | str | Any]], i: int, headers: list[str]) -> None:
     pages = headers[-2].split(" ")[1] if len(headers) >= 3 and headers[-2].startswith("Sida") else None
     toc[i].append(pages)
     logger.debug(f"Extracted pages '{pages}' from article {i}")
 
 
-def extract_media(toc, i, headers):
+def extract_media(toc: list[list[int | str | Any]], i: int, headers: list[str]) -> None:
     media = headers[-1] if headers[-1].startswith("Publicerat") else None
     if media:
         media = "webb" if "webb" in media else "print"
@@ -195,7 +194,7 @@ def extract_media(toc, i, headers):
     logger.debug(f"Extracted media '{media}' from article {i}")
 
 
-def fix_header(article):
+def fix_header(article: str) -> tuple[str, int]:
     if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
         article = article.replace("\n\n", "\n", 1)
         logger.info("Removed empty line from header")
