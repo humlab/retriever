@@ -92,24 +92,18 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
         toc[i].append(article)  # append full text to toc entry
 
-        # Remove empty line from header
         article, header_lenght = fix_header(article)
 
         toc[i].append(header_lenght)
 
-        # Extract headers from article
         headers = extract_headers(toc, i, article)
 
-        # Check that the title in the toc matches the title in the article
         check_title(toc, i, article)
 
-        # Extract media from headers
         extract_media(toc, i, headers)
 
-        # Extract pages from headers
         extract_pages(toc, i, headers)
 
-        # Extract url from article
         extract_url(toc, i, article)
 
         # Remove url from article
@@ -158,12 +152,29 @@ def create_corpus(toc: list[list[int | str | Any]], articles: list[str]) -> pd.D
 
 
 def check_title(toc: list[list[int | str | Any]], i: int, article: str) -> None:
+    """Test that the title in the toc matches the title in the article.
+
+    Args:
+        toc (list[list[int  |  str  |  Any]]): Table of contents.
+        i (int): Article index.
+        article (str): Article text.
+    """
     article_title = re.sub(r"\W+", " ", str(article.split("\n", maxsplit=1)[0].strip())).lower().strip()
     toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
     assert toc_title.startswith(article_title[:25])
 
 
 def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> list[str]:
+    """Extract headers from article.
+
+    Args:
+        toc (list[list[int  |  str  |  Any]]): Table of contents.
+        i (int): Article index.
+        article (str): Article text.
+
+    Returns:
+        list[str]: Headers.
+    """
     headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
     toc[i].append("\n".join(headers))  # append header to toc entry
 
@@ -174,6 +185,13 @@ def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> l
 
 
 def extract_url(toc: list[list[int | str | Any]], i: int, article: str) -> None:
+    """Extract url from article.
+
+    Args:
+        toc (list[list[int  |  str  |  Any]]): Table of contents.
+        i (int): Article index.
+        article (str): Article text.
+    """
     m = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
     url = m.groups()[0] if m else None
     toc[i].append(url)
@@ -181,12 +199,26 @@ def extract_url(toc: list[list[int | str | Any]], i: int, article: str) -> None:
 
 
 def extract_pages(toc: list[list[int | str | Any]], i: int, headers: list[str]) -> None:
+    """Extract page numbers from headers.
+
+    Args:
+        toc (list[list[int  |  str  |  Any]]): Table of contents.
+        i (int): Article index.
+        headers (list[str]): Headers.
+    """
     pages = headers[-2].split(" ")[1] if len(headers) >= 3 and headers[-2].startswith("Sida") else None
     toc[i].append(pages)
     logger.debug(f"Extracted pages '{pages}' from article {i}")
 
 
 def extract_media(toc: list[list[int | str | Any]], i: int, headers: list[str]) -> None:
+    """Extract media type from headers.
+
+    Args:
+        toc (list[list[int  |  str  |  Any]]): Table of contents.
+        i (int): Article index.
+        headers (list[str]): Headers.
+    """
     media = headers[-1] if headers[-1].startswith("Publicerat") else None
     if media:
         media = "webb" if "webb" in media else "print"
@@ -195,6 +227,14 @@ def extract_media(toc: list[list[int | str | Any]], i: int, headers: list[str]) 
 
 
 def fix_header(article: str) -> tuple[str, int]:
+    """Fix header. Remove empty line from article text if header is less than 3 lines.
+
+    Args:
+        article (str): Article text.
+
+    Returns:
+        tuple[str, int]: Article text and header length.
+    """
     if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
         article = article.replace("\n\n", "\n", 1)
         logger.info("Removed empty line from header")
