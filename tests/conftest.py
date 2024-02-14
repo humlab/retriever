@@ -1,6 +1,5 @@
 # pylint: disable=redefined-outer-name
 
-
 import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
