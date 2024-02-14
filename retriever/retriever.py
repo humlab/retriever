@@ -154,12 +154,29 @@ def create_corpus(
 
 
 def remove_captions_from_article(article: str) -> str:
+    """Remove captions from article.
+
+    Args:
+        article (str): Article text.
+
+    Returns:
+        str: Article text without captions.
+    """
     logger.debug("Removing captions like 'Bild: [Name [Name]]'")
     article = re.sub(r"Bild: ([A-Z][a-z]+(?: [A-Z][a-z]+)*)(/TT)?\s?", "", article).strip()
     return article
 
 
 def remove_stop_words_from_article(article: str, stop_words: str) -> str:
+    """Remove stop words from article.
+
+    Args:
+        article (str): Article text.
+        stop_words (str): Stop words. A string with stop words separated by '|'.
+
+    Returns:
+        str: Article text without stop words.
+    """
     logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
     article = re.sub(rf"({stop_words}):\s?", "", article).strip()
     return article
