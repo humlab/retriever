@@ -276,7 +276,7 @@ def extract_media(toc: list[list[int | str | Any]], i: int, headers: list[str]) 
 
 
 def fix_header(article: str) -> tuple[str, int]:
-    """Fix header. Remove empty line from article text if header is less than 3 lines.
+    """Fix header. Remove empty lines from article header.
 
     Args:
         article (str): Article text.
@@ -284,9 +284,21 @@ def fix_header(article: str) -> tuple[str, int]:
     Returns:
         tuple[str, int]: Article text and header length.
     """
-    if (header_lenght := len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))) < 3:
-        article = article.replace("\n\n", "\n", 1)
-        logger.info("Removed empty line from header")
+    lines = article.split('\n')
+    output_lines = []
+
+    found_publicerat = False
+
+    for line in lines:
+        if line.strip().startswith('Publicerat'):
+            found_publicerat = True
+
+        if found_publicerat or line.strip() != '':
+            output_lines.append(line)
+
+    article = '\n'.join(output_lines)
+    header_lenght = len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))
+
     return article, header_lenght
 
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 from pandas import Timestamp
-from retriever.retriever import create_corpus, get_articles, get_toc, log_diffs
+from retriever.retriever import create_corpus, fix_header, get_articles, get_toc, log_diffs
 
 
 @pytest.fixture(name='input_file')
@@ -151,3 +151,55 @@ def test_log_diffs_save_diffs(duplicates, tmp_path):
 
     with open(tmp_path / 'diff' / expected_output['filename'], 'r', encoding='utf-8') as file:
         assert file.read() == expected_output['content']
+
+
+@pytest.fixture(name='article_text')
+def fixture_article_text():
+    text = """Title
+
+Source, 2020-12-04 05:26
+Publicerat på webb.
+
+Text."""
+    return text
+
+
+def test_fix_header_for_article_with_empty_line_after_title(article_text):
+    expected_output = """Title
+Source, 2020-12-04 05:26
+Publicerat på webb.
+
+Text."""
+
+    assert fix_header(article_text)[0] == expected_output
+
+
+@pytest.fixture(name='article_text_multiline')
+def fixture_article_text_multiline():
+    text = """Title line one
+Title line two
+Title line three
+
+Source, 2020-12-04 05:26
+Sida 23
+Publicerat på webb.
+
+Paragraph.
+
+Another paragraph."""
+    return text
+
+
+def test_fix_header_for_article_with_multiline_title(article_text_multiline):
+    expected_output = """Title line one
+Title line two
+Title line three
+Source, 2020-12-04 05:26
+Sida 23
+Publicerat på webb.
+
+Paragraph.
+
+Another paragraph."""
+
+    assert fix_header(article_text_multiline)[0] == expected_output
