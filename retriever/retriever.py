@@ -80,8 +80,7 @@ def get_articles(filename: str, offset: int) -> list[str]:
 def create_corpus(
     toc: list[list[int | str | Any]],
     articles: list[str],
-    remove_stop_words: bool = True,
-    stop_words: str = "Bildtext|Image-text|Pressbild|Snabbversion",
+    stop_words: str | None = None,
     remove_captions: bool = True,
     remove_copyright: bool = True,
 ) -> pd.DataFrame:
@@ -90,6 +89,9 @@ def create_corpus(
     Args:
         toc (list[list[int  |  str  |  Any]]): Table of contents.
         articles (list[str]): List of articles.
+        stop_words (str, optional): Stop words. A string with stop words separated by '|'. Defaults to None.
+        remove_captions (bool, optional): Remove captions from article. Defaults to True.
+        remove_copyright (bool, optional): Remove copyright string from article. Defaults to True.
 
     Returns:
         pd.DataFrame: Corpus.
@@ -116,11 +118,11 @@ def create_corpus(
         # Remove url from article
         article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", article).strip()
 
-        article = remove_stop_words_from_article(article, stop_words) if remove_stop_words else article
+        article = remove_stop_words_from_article(article, stop_words) if stop_words else article
 
         article = remove_captions_from_article(article) if remove_captions else article
 
-        article = remove_copyrigth_string(article) if remove_copyright else article
+        article = remove_copyright_string(article) if remove_copyright else article
 
         assert "Retriever" not in article
 
@@ -152,14 +154,14 @@ def create_corpus(
     return corpus
 
 
-def remove_copyrigth_string(article: str) -> str:
-    """Remove copyrigth string from article. The copyrigth string is assumed to be in the last line. If not, a warning is logged.
+def remove_copyright_string(article: str) -> str:
+    """Remove copyright string from article. The copyright string is assumed to be in the last line. If not, a warning is logged.
 
     Args:
         article (str): Article text.
 
     Returns:
-        str: The article text without the copyrigth string.
+        str: The article text without the copyright string.
     """
     logger.debug("Removing copyright string")
 
@@ -185,7 +187,7 @@ def remove_captions_from_article(article: str) -> str:
     return article
 
 
-def remove_stop_words_from_article(article: str, stop_words: str) -> str:
+def remove_stop_words_from_article(article: str, stop_words: str | None) -> str:
     """Remove stop words from article.
 
     Args:
@@ -195,8 +197,9 @@ def remove_stop_words_from_article(article: str, stop_words: str) -> str:
     Returns:
         str: Article text without stop words.
     """
-    logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
-    article = re.sub(rf"({stop_words}):\s?", "", article).strip()
+    if stop_words:
+        logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
+        article = re.sub(rf"({stop_words}):\s?", "", article).strip()
     return article
 
 
@@ -337,7 +340,13 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
                     f.write(diff_text)
 
 
-def main(input_folder: str, save_short_headers: bool = False) -> None:
+def main(
+    input_folder: str,
+    save_short_headers: bool = False,
+    stop_words: str | None = "Bildtext|Image-text|Pressbild|Snabbversion",
+    remove_captions: bool = True,
+    remove_copyright: bool = True,
+) -> None:
     """Main function.
 
     Args:
@@ -359,7 +368,7 @@ def main(input_folder: str, save_short_headers: bool = False) -> None:
         toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
         articles: list[str] = get_articles(filepath, offset)
 
-        df: pd.DataFrame = create_corpus(toc, articles)
+        df: pd.DataFrame = create_corpus(toc, articles, stop_words, remove_captions, remove_copyright)
 
         df['document_name'] = df.source.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip()
         df['document_name'] = (
@@ -449,4 +458,10 @@ if __name__ == "__main__":
     # typer.run(main)
     logger.remove()
     logger.add(sys.stderr, level='INFO')
-    main("./input", save_short_headers=False)
+    main(
+        "./input",
+        save_short_headers=False,
+        stop_words="Bildtext|Image-text|Pressbild|Snabbversion",
+        remove_captions=True,
+        remove_copyright=True,
+    )
