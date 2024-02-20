@@ -83,6 +83,7 @@ def create_corpus(
     remove_stop_words: bool = True,
     stop_words: str = "Bildtext|Image-text|Pressbild|Snabbversion",
     remove_captions: bool = True,
+    remove_copyright: bool = True,
 ) -> pd.DataFrame:
     """Create a corpus from the table of contents and articles.
 
@@ -120,8 +121,7 @@ def create_corpus(
         article = remove_captions_from_article(article) if remove_captions else article
 
         # TODO: Only look at the end of the article text
-        logger.debug(f"Removing copyright string from article {i}")
-        article = re.sub(r"©.*$", "", article).strip()
+        article = remove_copyrigth_string(article) if remove_copyright else article
 
         assert "Retriever" not in article
 
@@ -151,6 +151,20 @@ def create_corpus(
     if len(empty := corpus[corpus.drop(columns=["pages", "media"]).isnull().any(axis=1)]):
         logger.info(f"Missing values in df:\n{empty}")
     return corpus
+
+
+def remove_copyrigth_string(article: str) -> str:
+    """Remove copyrigth string from article.
+
+    Args:
+        article (str): Article text.
+
+    Returns:
+        str: The article text without the copyrigth string.
+    """
+    logger.debug("Removing copyright string")
+    article = re.sub(r"©.*$", "", article).strip()
+    return article
 
 
 def remove_captions_from_article(article: str) -> str:
