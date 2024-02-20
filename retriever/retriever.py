@@ -120,7 +120,6 @@ def create_corpus(
 
         article = remove_captions_from_article(article) if remove_captions else article
 
-        # TODO: Only look at the end of the article text
         article = remove_copyrigth_string(article) if remove_copyright else article
 
         assert "Retriever" not in article
@@ -154,7 +153,7 @@ def create_corpus(
 
 
 def remove_copyrigth_string(article: str) -> str:
-    """Remove copyrigth string from article.
+    """Remove copyrigth string from article. The copyrigth string is assumed to be in the last line. If not, a warning is logged.
 
     Args:
         article (str): Article text.
@@ -163,7 +162,12 @@ def remove_copyrigth_string(article: str) -> str:
         str: The article text without the copyrigth string.
     """
     logger.debug("Removing copyright string")
+
+    if "©" not in article.split("\n")[-1:][0]:
+        logger.warning("Copyright string not in last line")
+
     article = re.sub(r"©.*$", "", article).strip()
+
     return article
 
 
