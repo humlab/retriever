@@ -81,8 +81,8 @@ def create_corpus(
     toc: list[list[int | str | Any]],
     articles: list[str],
     stop_words: str | None = None,
-    remove_captions: bool = True,
-    remove_copyright: bool = True,
+    remove_captions: bool = False,
+    remove_copyright: bool = False,
 ) -> pd.DataFrame:
     """Create a corpus from the table of contents and articles.
 
@@ -90,8 +90,8 @@ def create_corpus(
         toc (list[list[int  |  str  |  Any]]): Table of contents.
         articles (list[str]): List of articles.
         stop_words (str, optional): Stop words. A string with stop words separated by '|'. Defaults to None.
-        remove_captions (bool, optional): Remove captions from article. Defaults to True.
-        remove_copyright (bool, optional): Remove copyright string from article. Defaults to True.
+        remove_captions (bool, optional): Remove captions from article. Defaults to False.
+        remove_copyright (bool, optional): Remove copyright string from article. Defaults to False.
 
     Returns:
         pd.DataFrame: Corpus.
@@ -343,15 +343,18 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
 def main(
     input_folder: str,
     save_short_headers: bool = False,
-    stop_words: str | None = "Bildtext|Image-text|Pressbild|Snabbversion",
-    remove_captions: bool = True,
-    remove_copyright: bool = True,
+    stop_words: str | None = None,
+    remove_captions: bool = False,
+    remove_copyright: bool = False,
 ) -> None:
     """Main function.
 
     Args:
         input_folder (str): Input folder.
         save_short_headers (bool, optional): Save files with short headers. Defaults to False.
+        stop_words (str, optional): Stop words. A string with stop words separated by '|'. Defaults to None.
+        remove_captions (bool, optional): Remove captions from article. Defaults to False.
+        remove_copyright (bool, optional): Remove copyright string from article. Defaults to False.
     """
     output_folder: str = f"{input_folder}/output"
     if not os.path.exists(output_folder):
@@ -461,7 +464,7 @@ if __name__ == "__main__":
     main(
         "./input",
         save_short_headers=False,
-        stop_words="Bildtext|Image-text|Pressbild|Snabbversion",
-        remove_captions=True,
+        stop_words=None,
+        remove_captions=False,
         remove_copyright=True,
     )
