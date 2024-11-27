@@ -2,7 +2,6 @@
 import difflib
 import os
 import re
-import sys
 from typing import Any
 
 import pandas as pd
