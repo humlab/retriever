@@ -1,12 +1,13 @@
 # pylint: disable=redefined-outer-name
+from typing import Any, Generator
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
 
-@pytest.fixture
-def caplog(caplog: LogCaptureFixture):
+@pytest.fixture(name="caplog")
+def caplog_fixture(caplog: LogCaptureFixture) -> Generator[Any, Any, Any]:
     handler_id = logger.add(
         caplog.handler,
         format="{message}",
