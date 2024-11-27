@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 import roman
+import typer
 from loguru import logger
 
 
@@ -458,13 +459,4 @@ def main(
 
 
 if __name__ == "__main__":
-    # typer.run(main)
-    logger.remove()
-    logger.add(sys.stderr, level='INFO')
-    main(
-        "./input",
-        save_short_headers=False,
-        stop_words=None,
-        remove_captions=False,
-        remove_copyright=True,
-    )
+    typer.run(main)
