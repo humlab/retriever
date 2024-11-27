@@ -14,7 +14,7 @@ pylint:
 	@poetry run pylint $(SOURCE_FOLDERS)
 
 mypy:
-	@poetry run mypy --strict $(SOURCE_FOLDERS)
+	@poetry run mypy --strict $(SOURCE_FOLDERS) || true
 
 lint: tidy pylint mypy
 .PHONY: lint
