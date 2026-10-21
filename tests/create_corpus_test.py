@@ -4,7 +4,7 @@ from typing import Any, LiteralString
 import pandas as pd
 import pytest
 from pandas import Timestamp
-from clime.create_corpus import create_corpus, fix_header, get_articles, get_toc, log_diffs
+import clime.create_corpus
 
 
 @pytest.fixture(name='input_file')
@@ -66,7 +66,7 @@ def fixture_corpus() -> pd.DataFrame:
 
 
 def test_get_toc(input_file: Any) -> None:
-    toc, offset = get_toc(input_file, 'Innehållsförteckning:', 2)
+    toc, offset = clime.create_corpus.get_toc(input_file, 'Innehållsförteckning:', 2)
 
     expected_toc: list[list[str | int]] = [
         ['Title One', 'Source One', '2020-12-04 05:26', 6],
@@ -79,8 +79,8 @@ def test_get_toc(input_file: Any) -> None:
 
 
 def test_get_articles(input_file: Any) -> None:
-    _, offset = get_toc(input_file, 'Innehållsförteckning:', 2)
-    articles = get_articles(input_file, offset)
+    _, offset = clime.create_corpus.get_toc(input_file, 'Innehållsförteckning:', 2)
+    articles = clime.create_corpus.get_articles(input_file, offset)
 
     expected_articles = [
         'Title One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nText one.',
@@ -91,9 +91,9 @@ def test_get_articles(input_file: Any) -> None:
 
 
 def test_create_corpus(input_file: Any, expected_corpus: pd.DataFrame) -> None:
-    toc, offset = get_toc(input_file, 'Innehållsförteckning:', 2)
-    articles = get_articles(input_file, offset)
-    corpus = create_corpus(toc, articles)
+    toc, offset = clime.create_corpus.get_toc(input_file, 'Innehållsförteckning:', 2)
+    articles = clime.create_corpus.get_articles(input_file, offset)
+    corpus = clime.create_corpus.create_corpus(toc, articles)
 
     assert corpus.equals(expected_corpus)
 
@@ -131,7 +131,7 @@ def fixture_duplicates() -> pd.DataFrame:
 
 
 def test_log_diffs(caplog: Any, duplicates: pd.DataFrame, tmp_path: Path) -> None:
-    log_diffs(duplicates, output_folder=str(tmp_path), save_diffs=False)
+    clime.create_corpus.log_diffs(duplicates, output_folder=str(tmp_path), save_diffs=False)
 
     assert caplog.text
 
@@ -145,7 +145,7 @@ def test_log_diffs(caplog: Any, duplicates: pd.DataFrame, tmp_path: Path) -> Non
 
 
 def test_log_diffs_save_diffs(duplicates: pd.DataFrame, tmp_path: Path) -> None:
-    log_diffs(duplicates, output_folder=str(tmp_path), save_diffs=True)
+    clime.create_corpus.log_diffs(duplicates, output_folder=str(tmp_path), save_diffs=True)
 
     expected_output = {
         'filename': 'Document_20201204_webb_Source_2020-12-04_webb_0.diff',
@@ -174,7 +174,7 @@ Publicerat på webb.
 
 Text."""
 
-    assert fix_header(article_text)[0] == expected_output
+    assert clime.create_corpus.fix_header(article_text)[0] == expected_output
 
 
 @pytest.fixture(name='article_text_multiline')
@@ -205,4 +205,4 @@ Paragraph.
 
 Another paragraph."""
 
-    assert fix_header(article_text_multiline)[0] == expected_output
+    assert clime.create_corpus.fix_header(article_text_multiline)[0] == expected_output
