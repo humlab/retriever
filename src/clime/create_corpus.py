@@ -122,11 +122,9 @@ def create_corpus(
         article = remove_captions_from_article(article) if remove_captions else article
 
         article = remove_copyright_string(article) if remove_copyright else article
-
-        # assert "Retriever" not in article
-        # log if "Retriever" is in the article
-        if "Retriever" in article:
-            logger.warning(f"'Retriever' found in article {i}")
+        
+        if remove_copyright and "Retriever" in article:
+            logger.warning(f"'Retriever' not removed from article {i}")
 
         logger.debug(f"Removing header from article {i}")
         article = article[article.find("\n\n") :].strip()
