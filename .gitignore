@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Backup files
+*.bak
+
 # Folders
 tmp/
 data/
