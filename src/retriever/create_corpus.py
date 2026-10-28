@@ -234,9 +234,7 @@ def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> l
 
     # Log ERROR if headers length is less than MIN_HEADER_LENGTH
     if len(headers) < MIN_HEADER_LENGTH:
-        logger.error(
-            f"Headers length is less than {MIN_HEADER_LENGTH} in article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][0]}"
-        )
+        logger.error(f"Headers length is less than {MIN_HEADER_LENGTH} in article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][0]}")
     return headers
 
 
@@ -291,19 +289,19 @@ def fix_header(article: str) -> tuple[str, int]:
     Returns:
         tuple[str, int]: Article text and header length.
     """
-    lines = article.split('\n')
+    lines = article.split("\n")
     output_lines: list[str] = []
 
     found_publicerat = False
 
     for line in lines:
-        if line.strip().startswith('Publicerat'):
+        if line.strip().startswith("Publicerat"):
             found_publicerat = True
 
-        if found_publicerat or line.strip() != '':
+        if found_publicerat or line.strip() != "":
             output_lines.append(line)
 
-    article = '\n'.join(output_lines)
+    article = "\n".join(output_lines)
     header_lenght = len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))
 
     return article, header_lenght
@@ -322,25 +320,21 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
         os.makedirs(diff_folder)
 
     # Identify duplicates
-    diff_articles = duplicates[
-        ~duplicates.duplicated(subset=['document_name', 'source', 'date', 'media', 'article_text'], keep=False)
-    ]
+    diff_articles = duplicates[~duplicates.duplicated(subset=["document_name", "source", "date", "media", "article_text"], keep=False)]
 
     # Group the diff_articles
-    grouped = diff_articles.groupby(['document_name', 'source', 'date', 'media'])
+    grouped = diff_articles.groupby(["document_name", "source", "date", "media"])
 
     # For each group of diff_articles, compare the 'article_text'
     for name, group in grouped:
-        texts = group['article_text'].tolist()
+        texts = group["article_text"].tolist()
         for i in range(1, len(texts)):
             diff = difflib.ndiff(texts[i - 1].splitlines(), texts[i].splitlines())
-            diff_text = '\n'.join(diff)
+            diff_text = "\n".join(diff)
             logger.info(f"Differences for {name}:\n{diff_text}")
             # save diff_text to file
             if save_diffs:
-                with open(
-                    f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i-1}.diff", "w", encoding="utf-8"
-                ) as f:
+                with open(f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i - 1}.diff", "w", encoding="utf-8") as f:
                     f.write(diff_text)
 
 
@@ -377,37 +371,35 @@ def main(
 
         df: pd.DataFrame = create_corpus(toc, articles, stop_words, remove_captions, remove_copyright)
 
-        df['document_name'] = df.source.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip()
-        df['document_name'] = (
+        df["document_name"] = df.source.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip()
+        df["document_name"] = (
             df.document_name
-            + '_'
-            + df.title.fillna('').str.replace(r'\W+', '_', regex=True).str.lower().str.strip().str.strip('_').str[:60]
+            + "_"
+            + df.title.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip().str.strip("_").str[:60]
         )
-        df['document_name'] = (
+        df["document_name"] = (
             df.document_name
-            + '_'
-            + df.date.fillna('').str.replace(' ', '').str.replace(':', '').str.replace('-', '')
-            + '_'
-            + df.media.fillna('')
+            + "_"
+            + df.date.fillna("").str.replace(" ", "").str.replace(":", "").str.replace("-", "")
+            + "_"
+            + df.media.fillna("")
         )
-        df['filename'] = df.document_name + ".txt"
-        df['year'] = df.date.fillna(0).str[:4].astype(int)
+        df["filename"] = df.document_name + ".txt"
+        df["year"] = df.date.fillna(0).str[:4].astype(int)
         df["input_file"] = filename
 
         article_counts[filename] = len(df)
         all_metadata.append(df)
 
-    logger.info(f'Found {sum(article_counts.values())} articles')
+    logger.info(f"Found {sum(article_counts.values())} articles")
 
     # Combine metadata
     document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
     document_index.reset_index(drop=True, inplace=True)
-    document_index['document_id'] = document_index.index
+    document_index["document_id"] = document_index.index
 
     # Check for duplicates
-    duplicates: pd.DataFrame = document_index[
-        document_index.duplicated(subset=['document_name', 'source', 'date', 'media'], keep=False)
-    ]
+    duplicates: pd.DataFrame = document_index[document_index.duplicated(subset=["document_name", "source", "date", "media"], keep=False)]
     logger.info(f"Found {len(duplicates)} non-unique articles")
 
     # Log differences between duplicates
@@ -415,25 +407,21 @@ def main(
 
     # Save duplicates to csv
     duplicates = (
-        duplicates.groupby(['document_name', 'source', 'date', 'media'])
-        .agg(urls=('url', ', '.join), count=('url', 'count'))
-        .reset_index()
+        duplicates.groupby(["document_name", "source", "date", "media"]).agg(urls=("url", ", ".join), count=("url", "count")).reset_index()
     )
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
 
     # Remove duplicates. Keep the last article.
-    document_index.drop_duplicates(subset=['document_name', 'source', 'date', 'media'], keep='last', inplace=True)
+    document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last", inplace=True)
     logger.info(f"Removed {len(duplicates)} duplicates")
-    logger.info(f'Saving {len(document_index)} unique articles')
+    logger.info(f"Saving {len(document_index)} unique articles")
 
     # Save articles to txt files
     for _, metadata in document_index.iterrows():
         with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
-            f.write(metadata['title'] + "\n\n")
-            f.write(metadata['article_text'])
-    logger.success(
-        f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}'
-    )
+            f.write(metadata["title"] + "\n\n")
+            f.write(metadata["article_text"])
+    logger.success(f"Saved {len([f for f in os.listdir(output_folder) if f.endswith('.txt')])} articles to {output_folder}")
 
     # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
     if save_short_headers:
@@ -443,19 +431,17 @@ def main(
         short_headers = document_index[document_index.header_lenght < MIN_HEADER_LENGTH]
         for _, metadata in short_headers.iterrows():
             with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
-                f.write(metadata['title'] + "\n\n")
-                f.write(metadata['article_text'])
+                f.write(metadata["title"] + "\n\n")
+                f.write(metadata["article_text"])
         logger.success(
-            f'Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith(".txt")])} articles '
-            f'with short headers to {short_headers_folder}'
+            f"Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith('.txt')])} articles "
+            f"with short headers to {short_headers_folder}"
         )
 
     # Save document_index to csv
-    document_index = document_index.drop(
-        columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"]
-    )
+    document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
     document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
-    logger.success(f'Saved document_index to {output_folder}/document_index.csv')
+    logger.success(f"Saved document_index to {output_folder}/document_index.csv")
 
 
 if __name__ == "__main__":
