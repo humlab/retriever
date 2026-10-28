@@ -416,7 +416,7 @@ def main(
     # Save duplicates to csv
     duplicates = (
         duplicates.groupby(['document_name', 'source', 'date', 'media'])
-        .agg(urls=('url', lambda x: ', '.join(x)), count=('url', 'count'))  # pylint: disable=unnecessary-lambda
+        .agg(urls=('url', ', '.join), count=('url', 'count'))
         .reset_index()
     )
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
