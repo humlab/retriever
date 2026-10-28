@@ -115,6 +115,15 @@ def test_create_corpus_raises_when_toc_and_articles_differ() -> None:
         retriever.create_corpus.create_corpus(toc, ["article one", "article two"])
 
 
+def test_create_corpus_keeps_row_with_unparsable_date() -> None:
+    toc: list[list[Any]] = [["Title", "Source", "okänt datum", 6]]
+    article = "Title\nSource, okänt datum\nPublicerat på webb.\n\nBody."
+
+    corpus = retriever.create_corpus.create_corpus(toc, [article])
+
+    assert corpus["date_time"].isna().all()
+
+
 def test_get_toc_warns_about_unparsed_line(tmp_path: Path, caplog: Any) -> None:
     file = tmp_path / "input.txt"
     file.write_text("Innehållsförteckning:\n\n> A Title, A Source, 2020-12-04 05:26\n> B Title, B Source\n\nend\n")

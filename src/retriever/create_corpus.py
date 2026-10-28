@@ -156,7 +156,8 @@ def create_corpus(
         "article_text",
     ]
     corpus = pd.DataFrame(toc, columns=columns)
-    corpus["date_time"] = pd.to_datetime(corpus["date"], format="mixed")
+    # errors="coerce": an unparsable date becomes NaT and is reported by the missing-value check below, instead of killing the run
+    corpus["date_time"] = pd.to_datetime(corpus["date"], format="mixed", errors="coerce")
 
     # Check for missing values
     if len(empty := corpus[corpus.drop(columns=["pages", "media"]).isnull().any(axis=1)]):
@@ -395,7 +396,7 @@ def main(
             + df.media.fillna("")
         )
         df["filename"] = df.document_name + ".txt"
-        df["year"] = df.date.fillna(0).str[:4].astype(int)
+        df["year"] = df["date"].str[:4]  # a label, not a number: stays text so a missing date does not crash
         df["input_file"] = filename
 
         article_counts[filename] = len(df)
