@@ -370,7 +370,9 @@ def main(
     all_metadata: list[pd.DataFrame] = []  # List to store all metadata
 
     article_counts: dict[str, int] = {}
-    for filename in os.listdir(input_folder):
+
+    # sorted: the article order here fixes document_id and which copy of a duplicate survives
+    for filename in sorted(os.listdir(input_folder)):
         if not filename.endswith(".txt"):
             continue
         filepath: str = f"{input_folder}/{filename}"
