@@ -221,9 +221,11 @@ def check_title(toc: list[list[int | str | Any]], i: int, article: str) -> None:
         i (int): Article index.
         article (str): Article text.
     """
-    article_title = re.sub(r"\W+", " ", str(article.split("\n", maxsplit=1)[0].strip())).lower().strip()
+    first_line = article.split("\n", maxsplit=1)[0].strip()
+    article_title = re.sub(r"\W+", " ", first_line).lower().strip()
     toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
-    assert toc_title.startswith(article_title[:25])
+    if not toc_title.startswith(article_title[:25]):
+        logger.warning(f"Title mismatch in article {i}: toc '{toc[i][0]}' but article starts with '{first_line}'")
 
 
 def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> list[str]:
