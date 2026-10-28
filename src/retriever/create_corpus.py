@@ -8,6 +8,8 @@ import pandas as pd
 import typer
 from loguru import logger
 
+MIN_HEADER_LENGTH = 3
+
 
 def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[list[list[int | str | Any]], int]:
     """Extracts the table of contents from a Retriever export file.
@@ -230,9 +232,11 @@ def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> l
     headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
     toc[i].append("\n".join(headers))  # append header to toc entry
 
-    # Log ERROR if headers length is less than 3
-    if len(headers) < 3:
-        logger.error(f"Headers length is less than 3 in article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][0]}")
+    # Log ERROR if headers length is less than MIN_HEADER_LENGTH
+    if len(headers) < MIN_HEADER_LENGTH:
+        logger.error(
+            f"Headers length is less than {MIN_HEADER_LENGTH} in article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][0]}"
+        )
     return headers
 
 
@@ -258,7 +262,7 @@ def extract_pages(toc: list[list[int | str | Any]], i: int, headers: list[str]) 
         i (int): Article index.
         headers (list[str]): Headers.
     """
-    pages = headers[-2].split(" ")[1] if len(headers) >= 3 and headers[-2].startswith("Sida") else None
+    pages = headers[-2].split(" ")[1] if len(headers) >= MIN_HEADER_LENGTH and headers[-2].startswith("Sida") else None
     toc[i].append(pages)
     logger.debug(f"Extracted pages '{pages}' from article {i}")
 
@@ -431,12 +435,12 @@ def main(
         f'Saved {len([f for f in os.listdir(output_folder) if f.endswith(".txt")])} articles to {output_folder}'
     )
 
-    # save articles with header_lenght < 3 to txt files in subfolder "short_headers"
+    # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
     if save_short_headers:
         short_headers_folder: str = f"{output_folder}/short_headers"
         if not os.path.exists(short_headers_folder):
             os.makedirs(short_headers_folder)
-        short_headers = document_index[document_index.header_lenght < 3]
+        short_headers = document_index[document_index.header_lenght < MIN_HEADER_LENGTH]
         for _, metadata in short_headers.iterrows():
             with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
                 f.write(metadata['title'] + "\n\n")
