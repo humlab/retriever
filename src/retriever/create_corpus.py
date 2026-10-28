@@ -419,10 +419,17 @@ def main(
     log_diffs(duplicates, output_folder, save_diffs=False)
 
     # Save duplicates to csv
+    # url is None for articles without one, so join over filled values
     duplicates = (
-        duplicates.groupby(["document_name", "source", "date", "media"]).agg(urls=("url", ", ".join), count=("url", "count")).reset_index()
+        duplicates.groupby(["document_name", "source", "date", "media"])
+        .agg(urls=("url", lambda urls: ", ".join(urls.fillna(""))), count=("url", "count"))
+        .reset_index()
     )
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
+
+    # Punctuation is stripped from document_name, so two different articles can collide on one file: the lost text is not in duplicates.csv
+    for name in document_index.groupby("document_name")["article_text"].nunique().loc[lambda n: n > 1].index:
+        logger.warning(f"Different articles share the file '{name}.txt'; only the last one was saved")
 
     # Remove duplicates. Keep the last article.
     document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last", inplace=True)

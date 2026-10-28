@@ -267,3 +267,29 @@ def test_check_title_stays_quiet_on_match(caplog: Any) -> None:
     retriever.create_corpus.check_title(toc, 0, "Article title\nBody.")
 
     assert caplog.text == ""
+
+
+def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, caplog: Any) -> None:
+    (tmp_path / "export.txt").write_text(
+        "Innehållsförteckning:\n"
+        "\n"
+        "> Blixten: Här är läget, Source One, 2020-12-04 05:26\n"
+        "\n"
+        "> Blixten - Här är läget, Source One, 2020-12-04 05:26\n"
+        "\n"
+        "\n"
+        "Blixten: Här är läget\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n"
+        "\nText one.\n"
+        "==============================================================================\n"
+        "\nBlixten - Här är läget\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n"
+        "\nText two.\n",
+        encoding="utf-8",
+    )
+
+    retriever.create_corpus.main(str(tmp_path))
+
+    assert "WARNING" in caplog.text
+    assert "Different articles share the file" in caplog.text
+    saved = [f for f in (tmp_path / "output").iterdir() if f.suffix == ".txt"]
+    assert len(saved) == 1
+    assert "Text two." in saved[0].read_text(encoding="utf-8")
