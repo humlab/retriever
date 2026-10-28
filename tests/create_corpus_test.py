@@ -108,6 +108,24 @@ def test_create_corpus_without_body_has_empty_article_text() -> None:
     assert corpus["article_text"].tolist() == [""]
 
 
+def test_create_corpus_raises_when_toc_and_articles_differ() -> None:
+    toc: list[list[Any]] = [["Title", "Source", "2020-12-04 05:26", 6]]
+
+    with pytest.raises(ValueError, match="1 table of contents entries but 2 articles"):
+        retriever.create_corpus.create_corpus(toc, ["article one", "article two"])
+
+
+def test_get_toc_warns_about_unparsed_line(tmp_path: Path, caplog: Any) -> None:
+    file = tmp_path / "input.txt"
+    file.write_text("Innehållsförteckning:\n\n> A Title, A Source, 2020-12-04 05:26\n> B Title, B Source\n\nend\n")
+
+    toc, _ = retriever.create_corpus.get_toc(str(file), "Innehållsförteckning:", 2)
+
+    assert [entry[0] for entry in toc] == ["A Title"]
+    assert "WARNING" in caplog.text
+    assert "Unparsed toc line 4: '> B Title, B Source'" in caplog.text
+
+
 @pytest.fixture(name="duplicates")
 def fixture_duplicates() -> pd.DataFrame:
     return pd.DataFrame(

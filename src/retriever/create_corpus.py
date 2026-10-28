@@ -49,6 +49,8 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
                 data.append([title, source, date, toc_line_number])
                 # Reset not matched lines counter
                 not_matched_lines = 0
+            else:
+                logger.warning(f"Unparsed toc line {toc_line_number}: {line.strip()!r}")
         else:
             not_matched_lines += 1
         # Break if more than max_not_matched_lines does not start with >
@@ -97,6 +99,9 @@ def create_corpus(
     Returns:
         pd.DataFrame: Corpus.
     """
+    if len(toc) != len(articles):
+        raise ValueError(f"{len(toc)} table of contents entries but {len(articles)} articles — the export does not line up")
+
     for i, article in enumerate(articles):
         logger.debug(f"Processing article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][2]}")
 
