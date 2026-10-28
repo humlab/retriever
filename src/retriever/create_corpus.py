@@ -268,7 +268,8 @@ def extract_pages(toc: list[list[int | str | Any]], i: int, headers: list[str]) 
         i (int): Article index.
         headers (list[str]): Headers.
     """
-    pages = headers[-2].split(" ")[1] if len(headers) >= MIN_HEADER_LENGTH and headers[-2].startswith("Sida") else None
+    parts = headers[-2].split(" ")
+    pages = parts[1] if len(headers) >= MIN_HEADER_LENGTH and headers[-2].startswith("Sida") and len(parts) > 1 else None
     toc[i].append(pages)
     logger.debug(f"Extracted pages '{pages}' from article {i}")
 

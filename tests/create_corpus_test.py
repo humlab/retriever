@@ -241,3 +241,12 @@ Paragraph.
 Another paragraph."""
 
     assert retriever.create_corpus.fix_header(article_text_multiline)[0] == expected_output
+
+
+def test_extract_pages_without_a_number() -> None:
+    toc: list[list[Any]] = [["Title", "Source", "2020-12-04 05:26", 6]]
+
+    retriever.create_corpus.extract_pages(toc, 0, ["Title", "Sida", "Publicerat på webb."])
+    retriever.create_corpus.extract_pages(toc, 0, ["Title", "Sida 23", "Publicerat på webb."])
+
+    assert toc[0][4:6] == [None, "23"]
