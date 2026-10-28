@@ -30,4 +30,25 @@ dev = [
     "pandas-stubs>=3.0.5.260914",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
 ]
+
+[tool.ruff]
+target-version = "py315"
+line-length = 140
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # Pyflakes
+    "I",  # isort
+    "TID", # flake8-tidy-imports
+    "C90", # mccabe complexity
+    "PL", # pylint
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
