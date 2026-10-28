@@ -20,7 +20,7 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
     Returns:
         tuple[list[list[int | str | Any]], int]: Table of contents and offset.
     """
-    data = []
+    data: list[list[int | str | Any]] = []
     with open(filename, "r", encoding="utf-8") as file:
         lines = file.readlines()
 
@@ -122,7 +122,7 @@ def create_corpus(
         article = remove_captions_from_article(article) if remove_captions else article
 
         article = remove_copyright_string(article) if remove_copyright else article
-        
+
         if remove_copyright and "Retriever" in article:
             logger.warning(f"'Retriever' not removed from article {i}")
 
@@ -288,7 +288,7 @@ def fix_header(article: str) -> tuple[str, int]:
         tuple[str, int]: Article text and header length.
     """
     lines = article.split('\n')
-    output_lines = []
+    output_lines: list[str] = []
 
     found_publicerat = False
 
@@ -361,9 +361,9 @@ def main(
         os.makedirs(output_folder)
     logger.add(f"{output_folder}/run.log", level="WARNING", encoding="utf8")
 
-    all_metadata = []  # List to store all metadata
+    all_metadata: list[pd.DataFrame] = []  # List to store all metadata
 
-    article_counts = {}
+    article_counts: dict[str, int] = {}
     for filename in os.listdir(input_folder):
         if not filename.endswith(".txt"):
             continue
@@ -433,7 +433,7 @@ def main(
 
     # save articles with header_lenght < 3 to txt files in subfolder "short_headers"
     if save_short_headers:
-        short_headers_folder = f"{output_folder}/short_headers"
+        short_headers_folder: str = f"{output_folder}/short_headers"
         if not os.path.exists(short_headers_folder):
             os.makedirs(short_headers_folder)
         short_headers = document_index[document_index.header_lenght < 3]
@@ -442,7 +442,8 @@ def main(
                 f.write(metadata['title'] + "\n\n")
                 f.write(metadata['article_text'])
         logger.success(
-            f'Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith(".txt")])} articles with short headers to {short_headers_folder}'
+            f'Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith(".txt")])} articles '
+            f'with short headers to {short_headers_folder}'
         )
 
     # Save document_index to csv
