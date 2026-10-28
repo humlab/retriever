@@ -1,3 +1,5 @@
+import os
+import shutil
 from pathlib import Path
 from typing import Any, LiteralString
 
@@ -293,3 +295,78 @@ def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, cap
     saved = [f for f in (tmp_path / "output").iterdir() if f.suffix == ".txt"]
     assert len(saved) == 1
     assert "Text two." in saved[0].read_text(encoding="utf-8")
+
+
+class _ReversedListdir:
+    """Stands in for the os module and hands back files in reverse order."""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(os, name)
+
+    def listdir(self, path: str) -> list[str]:
+        return list(reversed(os.listdir(path)))
+
+
+@pytest.fixture(name="export_dir")
+def fixture_export_dir(tmp_path: Path) -> Path:
+    """Two exports with three articles, so file order decides the ids."""
+    toc = "Innehållsförteckning:\n\n{entries}\n\n\n"
+    entry = "> Article {n}, Source One, 2020-12-0{day} 0{hour}:00\n"
+    article = "Article {n}\nSource One, 2020-12-0{day} 0{hour}:00\nPublicerat på webb.\n\nText {n}.\n"
+    two = (
+        toc.format(entries=entry.format(n="One", day=4, hour=8) + entry.format(n="Two", day=4, hour=9))
+        + article.format(n="One", day=4, hour=8)
+        + "=" * 78
+        + "\n\n"
+        + article.format(n="Two", day=4, hour=9)
+    )
+    one = toc.format(entries=entry.format(n="Two", day=5, hour=9)) + article.format(n="Two", day=5, hour=9)
+    (tmp_path / "a_export.txt").write_text(two, encoding="utf-8")
+    (tmp_path / "b_export.txt").write_text(one, encoding="utf-8")
+    return tmp_path
+
+
+def test_main_writes_articles_and_index(export_dir: Path) -> None:
+    retriever.create_corpus.main(str(export_dir))
+
+    output = export_dir / "output"
+    saved = sorted(f.name for f in output.iterdir() if f.suffix == ".txt")
+    assert saved == [
+        "source_one_article_one_202012040800_webb.txt",
+        "source_one_article_two_202012040900_webb.txt",
+        "source_one_article_two_202012050900_webb.txt",
+    ]
+    assert (output / saved[0]).read_text(encoding="utf-8") == "Article One\n\nText One."
+
+    index = pd.read_csv(output / "document_index.csv", sep=";", dtype={"year": str})  # year is a label in the file
+    assert list(index.columns) == [
+        "title",
+        "source",
+        "date",
+        "media",
+        "pages",
+        "url",
+        "date_time",
+        "document_name",
+        "filename",
+        "year",
+        "input_file",
+        "document_id",
+    ]
+    assert list(index.document_id) == [0, 1, 2]
+    assert list(index.input_file) == ["a_export.txt", "a_export.txt", "b_export.txt"]
+    assert list(index.year.unique()) == ["2020"]
+    assert not index.date_time.isna().any()
+    assert (output / "duplicates.csv").read_text(encoding="utf-8-sig").strip() == "document_name;source;date;media;urls;count"
+
+
+def test_main_document_id_does_not_follow_filesystem_order(export_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    retriever.create_corpus.main(str(export_dir))
+    before = pd.read_csv(export_dir / "output/document_index.csv", sep=";")
+
+    shutil.rmtree(export_dir / "output")
+    monkeypatch.setattr(retriever.create_corpus, "os", _ReversedListdir())
+    retriever.create_corpus.main(str(export_dir))
+    after = pd.read_csv(export_dir / "output/document_index.csv", sep=";")
+
+    assert dict(zip(after.document_name, after.document_id)) == dict(zip(before.document_name, before.document_id))
