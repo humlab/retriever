@@ -4,6 +4,7 @@ from typing import Any, LiteralString
 import pandas as pd
 import pytest
 from pandas import Timestamp
+
 import retriever.create_corpus
 
 
