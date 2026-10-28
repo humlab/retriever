@@ -129,7 +129,10 @@ def create_corpus(
             logger.warning(f"'Retriever' not removed from article {i}")
 
         logger.debug(f"Removing header from article {i}")
-        cleaned_article = cleaned_article[cleaned_article.find("\n\n") :].strip()
+
+        cleaned_article = cleaned_article.partition("\n\n")[2].strip()
+        if not cleaned_article:
+            logger.warning(f"Empty article body: '{toc[i][0]}' ({toc[i][1]}, {toc[i][2]})")
 
         toc[i].append(cleaned_article)
 

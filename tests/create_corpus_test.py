@@ -99,6 +99,15 @@ def test_create_corpus(input_file: Any, expected_corpus: pd.DataFrame) -> None:
     assert corpus.equals(expected_corpus)
 
 
+def test_create_corpus_without_body_has_empty_article_text() -> None:
+    toc: list[list[Any]] = [["Title", "Source", "2020-12-04 05:26", 6]]
+    article = "Title\nSource, 2020-12-04 05:26\nPublicerat på webb."
+
+    corpus = retriever.create_corpus.create_corpus(toc, [article])
+
+    assert corpus["article_text"].tolist() == [""]
+
+
 @pytest.fixture(name="duplicates")
 def fixture_duplicates() -> pd.DataFrame:
     return pd.DataFrame(
