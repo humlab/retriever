@@ -102,36 +102,36 @@ def create_corpus(
 
         toc[i].append(article)  # append full text to toc entry
 
-        article, header_lenght = fix_header(article)
+        cleaned_article, header_lenght = fix_header(article)
 
         toc[i].append(header_lenght)
 
-        headers = extract_headers(toc, i, article)
+        headers = extract_headers(toc, i, cleaned_article)
 
-        check_title(toc, i, article)
+        check_title(toc, i, cleaned_article)
 
         extract_media(toc, i, headers)
 
         extract_pages(toc, i, headers)
 
-        extract_url(toc, i, article)
+        extract_url(toc, i, cleaned_article)
 
         # Remove url from article
-        article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", article).strip()
+        cleaned_article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", cleaned_article).strip()
 
-        article = remove_stop_words_from_article(article, stop_words) if stop_words else article
+        cleaned_article = remove_stop_words_from_article(cleaned_article, stop_words) if stop_words else cleaned_article
 
-        article = remove_captions_from_article(article) if remove_captions else article
+        cleaned_article = remove_captions_from_article(cleaned_article) if remove_captions else cleaned_article
 
-        article = remove_copyright_string(article) if remove_copyright else article
+        cleaned_article = remove_copyright_string(cleaned_article) if remove_copyright else cleaned_article
 
-        if remove_copyright and "Retriever" in article:
+        if remove_copyright and "Retriever" in cleaned_article:
             logger.warning(f"'Retriever' not removed from article {i}")
 
         logger.debug(f"Removing header from article {i}")
-        article = article[article.find("\n\n") :].strip()
+        cleaned_article = cleaned_article[cleaned_article.find("\n\n") :].strip()
 
-        toc[i].append(article)
+        toc[i].append(cleaned_article)
 
     # articles to dataframe
     columns: list[str] = [
