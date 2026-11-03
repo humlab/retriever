@@ -102,24 +102,28 @@ def create_corpus(
     if len(toc) != len(articles):
         raise ValueError(f"{len(toc)} table of contents entries but {len(articles)} articles — the export does not line up")
 
+    rows: list[dict[str, object]] = []
     for i, article in enumerate(articles):
-        logger.debug(f"Processing article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][2]}")
-
-        toc[i].append(article)  # append full text to toc entry
+        title, source, date = toc[i][0], toc[i][1], toc[i][2]
+        logger.debug(f"Processing article {i}: '{title}', {source}, {date}")
 
         cleaned_article, header_lenght = fix_header(article)
+        headers = extract_headers(cleaned_article)
+        check_title(title, cleaned_article)
 
-        toc[i].append(header_lenght)
-
-        headers = extract_headers(toc, i, cleaned_article)
-
-        check_title(toc, i, cleaned_article)
-
-        extract_media(toc, i, headers)
-
-        extract_pages(toc, i, headers)
-
-        extract_url(toc, i, cleaned_article)
+        # the keys here are the corpus columns, in the order they are written
+        row: dict[str, object] = {
+            "title": title,
+            "source": source,
+            "date": date,
+            "toc_line_number": toc[i][3],
+            "full_text": article,
+            "header_lenght": header_lenght,
+            "header": "\n".join(headers),
+            "media": extract_media(headers),
+            "pages": extract_pages(headers),
+            "url": extract_url(cleaned_article),
+        }
 
         # Remove url from article
         cleaned_article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", cleaned_article).strip()
@@ -137,25 +141,12 @@ def create_corpus(
 
         cleaned_article = cleaned_article.partition("\n\n")[2].strip()
         if not cleaned_article:
-            logger.warning(f"Empty article body: '{toc[i][0]}' ({toc[i][1]}, {toc[i][2]})")
+            logger.warning(f"Empty article body: '{title}' ({source}, {date})")
 
-        toc[i].append(cleaned_article)
+        row["article_text"] = cleaned_article
+        rows.append(row)
 
-    # articles to dataframe
-    columns: list[str] = [
-        "title",
-        "source",
-        "date",
-        "toc_line_number",
-        "full_text",
-        "header_lenght",
-        "header",
-        "media",
-        "pages",
-        "url",
-        "article_text",
-    ]
-    corpus = pd.DataFrame(toc, columns=columns)
+    corpus = pd.DataFrame(rows)
     corpus["date_time"] = pd.to_datetime(corpus["date"], format="mixed", errors="coerce")
 
     # Check for missing values
@@ -213,82 +204,77 @@ def remove_stop_words_from_article(article: str, stop_words: str | None) -> str:
     return article
 
 
-def check_title(toc: list[list[int | str | Any]], i: int, article: str) -> None:
-    """Test that the title in the toc matches the title in the article.
+def check_title(title: object, article: str) -> None:
+    """Log a warning if the title in the toc does not match the first line of the article.
 
     Args:
-        toc (list[list[int  |  str  |  Any]]): Table of contents.
-        i (int): Article index.
+        title (object): Title from the table of contents.
         article (str): Article text.
     """
     first_line = article.split("\n", maxsplit=1)[0].strip()
     article_title = re.sub(r"\W+", " ", first_line).lower().strip()
-    toc_title = re.sub(r"\W+", " ", str(toc[i][0])).lower().strip()
+    toc_title = re.sub(r"\W+", " ", str(title)).lower().strip()
     if not toc_title.startswith(article_title[:25]):
-        logger.warning(f"Title mismatch in article {i}: toc '{toc[i][0]}' but article starts with '{first_line}'")
+        logger.warning(f"Title mismatch: toc '{title}' but article starts with '{first_line}'")
 
 
-def extract_headers(toc: list[list[int | str | Any]], i: int, article: str) -> list[str]:
-    """Extract headers from article.
+def extract_headers(article: str) -> list[str]:
+    """Extract the header lines of an article.
 
     Args:
-        toc (list[list[int  |  str  |  Any]]): Table of contents.
-        i (int): Article index.
         article (str): Article text.
 
     Returns:
         list[str]: Headers.
     """
-    headers = str(article).split("\n\n", maxsplit=1)[0].strip().split("\n")
-    toc[i].append("\n".join(headers))  # append header to toc entry
+    headers = article.split("\n\n", maxsplit=1)[0].strip().split("\n")
 
     # Log ERROR if headers length is less than MIN_HEADER_LENGTH
     if len(headers) < MIN_HEADER_LENGTH:
-        logger.error(f"Headers length is less than {MIN_HEADER_LENGTH} in article {i}: '{toc[i][0]}', {toc[i][1]}, {toc[i][0]}")
+        logger.error(f"Headers length is less than {MIN_HEADER_LENGTH} in article starting with '{headers[0]}'")
     return headers
 
 
-def extract_url(toc: list[list[int | str | Any]], i: int, article: str) -> None:
-    """Extract url from article.
+def extract_url(article: str) -> str | None:
+    """Extract the url of an article.
 
     Args:
-        toc (list[list[int  |  str  |  Any]]): Table of contents.
-        i (int): Article index.
         article (str): Article text.
+
+    Returns:
+        str | None: The url, or None if the article has none.
     """
-    m = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
-    url = m.groups()[0] if m else None
-    toc[i].append(url)
-    logger.debug(f"Extracted url '{url}' from article {i}")
+    match = re.search("(?:Läs hela artikeln på|Se webartikeln på) (.*)", article)
+    return match.group(1) if match else None
 
 
-def extract_pages(toc: list[list[int | str | Any]], i: int, headers: list[str]) -> None:
-    """Extract page numbers from headers.
+def extract_pages(headers: list[str]) -> str | None:
+    """Extract the page number from the headers.
 
     Args:
-        toc (list[list[int  |  str  |  Any]]): Table of contents.
-        i (int): Article index.
         headers (list[str]): Headers.
+
+    Returns:
+        str | None: The page number, or None if the article has none.
     """
+    if len(headers) < MIN_HEADER_LENGTH or not headers[-2].startswith("Sida"):
+        return None
     parts = headers[-2].split(" ")
-    pages = parts[1] if len(headers) >= MIN_HEADER_LENGTH and headers[-2].startswith("Sida") and len(parts) > 1 else None
-    toc[i].append(pages)
-    logger.debug(f"Extracted pages '{pages}' from article {i}")
+    return parts[1] if len(parts) > 1 else None
 
 
-def extract_media(toc: list[list[int | str | Any]], i: int, headers: list[str]) -> None:
-    """Extract media type from headers.
+def extract_media(headers: list[str]) -> str | None:
+    """Tell if the article is from the web or in print, using the last header line.
 
     Args:
-        toc (list[list[int  |  str  |  Any]]): Table of contents.
-        i (int): Article index.
         headers (list[str]): Headers.
+
+    Returns:
+        str | None: 'webb', 'print', or None if the headers do not say.
     """
-    media = headers[-1] if headers[-1].startswith("Publicerat") else None
-    if media:
-        media = "webb" if "webb" in media else "print"
-    toc[i].append(media)
-    logger.debug(f"Extracted media '{media}' from article {i}")
+    if not headers[-1].startswith("Publicerat"):
+        return None
+    return "webb" if "webb" in headers[-1] else "print"
 
 
 def fix_header(article: str) -> tuple[str, int]:

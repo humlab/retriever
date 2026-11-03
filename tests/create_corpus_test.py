@@ -246,27 +246,19 @@ Another paragraph."""
 
 
 def test_extract_pages_without_a_number() -> None:
-    toc: list[list[Any]] = [["Title", "Source", "2020-12-04 05:26", 6]]
-
-    retriever.create_corpus.extract_pages(toc, 0, ["Title", "Sida", "Publicerat på webb."])
-    retriever.create_corpus.extract_pages(toc, 0, ["Title", "Sida 23", "Publicerat på webb."])
-
-    assert toc[0][4:6] == [None, "23"]
+    assert retriever.create_corpus.extract_pages(["Title", "Sida", "Publicerat på webb."]) is None
+    assert retriever.create_corpus.extract_pages(["Title", "Sida 23", "Publicerat på webb."]) == "23"
 
 
 def test_check_title_warns_on_mismatch(caplog: Any) -> None:
-    toc: list[list[Any]] = [["Article title", "Source", "2020-12-04 05:26", 6]]
-
-    retriever.create_corpus.check_title(toc, 0, "Different title\nBody.")
+    retriever.create_corpus.check_title("Article title", "Different title\nBody.")
 
     assert "WARNING" in caplog.text
-    assert "Title mismatch in article 0: toc 'Article title' but article starts with 'Different title'" in caplog.text
+    assert "Title mismatch: toc 'Article title' but article starts with 'Different title'" in caplog.text
 
 
 def test_check_title_stays_quiet_on_match(caplog: Any) -> None:
-    toc: list[list[Any]] = [["Article title", "Source", "2020-12-04 05:26", 6]]
-
-    retriever.create_corpus.check_title(toc, 0, "Article title\nBody.")
+    retriever.create_corpus.check_title("Article title", "Article title\nBody.")
 
     assert caplog.text == ""
 
