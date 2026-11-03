@@ -362,3 +362,11 @@ def test_main_document_id_does_not_follow_filesystem_order(export_dir: Path, mon
     after = pd.read_csv(export_dir / "output/document_index.csv", sep=";")
 
     assert dict(zip(after.document_name, after.document_id)) == dict(zip(before.document_name, before.document_id))
+
+
+def test_get_articles_drops_the_trailing_separator(tmp_path: Path) -> None:
+    separator = "=" * 78
+    file = tmp_path / "input.txt"
+    file.write_text(f"first{separator}\n\nsecond{separator}\n", encoding="utf-8")
+
+    assert retriever.create_corpus.get_articles(str(file), 1) == ["first", "second"]

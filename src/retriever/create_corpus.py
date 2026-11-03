@@ -77,6 +77,9 @@ def get_articles(filename: str, offset: int) -> list[str]:
     articles = data.split("==============================================================================")
     articles = [article.strip() for article in articles]
 
+    if articles and not articles[-1]:
+        articles.pop()  # an export may end with the separator line, which is not an empty article
+
     return articles
 
 
