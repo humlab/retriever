@@ -131,7 +131,8 @@ def create_corpus(
         # Remove url from article
         cleaned_article = re.sub("(?:Läs hela artikeln på|Se webartikeln på) .*", "", cleaned_article).strip()
 
-        cleaned_article = remove_stop_words_from_article(cleaned_article, stop_words) if stop_words else cleaned_article
+        if stop_words:
+            cleaned_article = remove_stop_words_from_article(cleaned_article, stop_words)
 
         cleaned_article = remove_captions_from_article(cleaned_article) if remove_captions else cleaned_article
 
@@ -191,20 +192,18 @@ def remove_captions_from_article(article: str) -> str:
     return article
 
 
-def remove_stop_words_from_article(article: str, stop_words: str | None) -> str:
-    """Remove stop words from article.
+def remove_stop_words_from_article(article: str, stop_words: str) -> str:
+    """Remove "Stop word: " prefixes anywhere in the article text.
 
     Args:
         article (str): Article text.
         stop_words (str): Stop words. A string with stop words separated by '|'.
 
     Returns:
-        str: Article text without stop words.
+        str: Article text without the stop words.
     """
-    if stop_words:
-        logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
-        article = re.sub(rf"({stop_words}):\s?", "", article).strip()
-    return article
+    logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
+    return re.sub(rf"({stop_words}):\s?", "", article).strip()
 
 
 def check_title(title: object, article: str) -> None:

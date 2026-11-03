@@ -381,3 +381,9 @@ def test_main_saves_short_headers_separately(export_dir: Path) -> None:
     retriever.create_corpus.main(str(export_dir), save_short_headers=True)
 
     assert (export_dir / "output/short_headers").is_dir()
+
+
+def test_remove_stop_words_from_article() -> None:
+    article = "Ledare: Att tycka rätt.\n\nBrödtext."
+
+    assert retriever.create_corpus.remove_stop_words_from_article(article, "Ledare|Krönika") == "Att tycka rätt.\n\nBrödtext."
