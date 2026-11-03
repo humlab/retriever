@@ -397,7 +397,6 @@ def main(
 
     # Combine metadata
     document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
-    document_index.reset_index(drop=True, inplace=True)
     document_index["document_id"] = document_index.index
 
     # Check for duplicates
