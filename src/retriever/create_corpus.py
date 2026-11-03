@@ -408,10 +408,10 @@ def main(
     log_diffs(duplicates, output_folder, save_diffs=False)
 
     # Save duplicates to csv
-    # url is None for articles without one, so join over filled values
+    # url is None when the export has none, so it is skipped; count rows, not urls
     duplicates = (
         duplicates.groupby(["document_name", "source", "date", "media"])
-        .agg(urls=("url", lambda urls: ", ".join(urls.fillna(""))), count=("url", "count"))
+        .agg(urls=("url", lambda urls: ", ".join(url for url in urls if url)), count=("url", "size"))
         .reset_index()
     )
     duplicates.to_csv(f"{output_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")

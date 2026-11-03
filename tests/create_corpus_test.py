@@ -288,6 +288,11 @@ def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, cap
     assert len(saved) == 1
     assert "Text two." in saved[0].read_text(encoding="utf-8")
 
+    # the pair is listed, with the urls it has (none here) and how many copies were found
+    duplicates = pd.read_csv(tmp_path / "output/duplicates.csv", sep=";")
+    assert duplicates["urls"].isna().all()
+    assert duplicates["count"].tolist() == [2]
+
 
 class _ReversedListdir:
     """Stands in for the os module and hands back files in reverse order."""
