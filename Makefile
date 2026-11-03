@@ -18,7 +18,7 @@ test:
 	@uv run -m pytest
 
 typing:
-	@uv run mypy --strict src tests || true
+	@uv run mypy --strict src tests
 
 
 create_corpus:
