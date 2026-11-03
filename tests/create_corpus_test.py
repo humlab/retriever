@@ -375,3 +375,9 @@ def test_get_articles_drops_the_trailing_separator(tmp_path: Path) -> None:
     file.write_text(f"first{separator}\n\nsecond{separator}\n", encoding="utf-8")
 
     assert retriever.create_corpus.get_articles(str(file), 1) == ["first", "second"]
+
+
+def test_main_saves_short_headers_separately(export_dir: Path) -> None:
+    retriever.create_corpus.main(str(export_dir), save_short_headers=True)
+
+    assert (export_dir / "output/short_headers").is_dir()

@@ -316,8 +316,8 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
         save_diffs (bool, optional): Save differences to file. Defaults to True.
     """
     diff_folder = f"{output_folder}/diff"
-    if save_diffs and not os.path.exists(diff_folder):
-        os.makedirs(diff_folder)
+    if save_diffs:
+        os.makedirs(diff_folder, exist_ok=True)
 
     # Identify duplicates
     diff_articles = duplicates[~duplicates.duplicated(subset=["document_name", "source", "date", "media", "article_text"], keep=False)]
@@ -355,8 +355,7 @@ def main(
         remove_copyright (bool, optional): Remove copyright string from article. Defaults to False.
     """
     output_folder: str = f"{input_folder}/output"
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    os.makedirs(output_folder, exist_ok=True)
     logger.add(f"{output_folder}/run.log", level="WARNING", encoding="utf8")
 
     all_metadata: list[pd.DataFrame] = []  # List to store all metadata
@@ -434,8 +433,7 @@ def main(
     # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
     if save_short_headers:
         short_headers_folder: str = f"{output_folder}/short_headers"
-        if not os.path.exists(short_headers_folder):
-            os.makedirs(short_headers_folder)
+        os.makedirs(short_headers_folder, exist_ok=True)
         short_headers = document_index[document_index.header_lenght < MIN_HEADER_LENGTH]
         for _, metadata in short_headers.iterrows():
             with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
