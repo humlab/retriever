@@ -170,7 +170,7 @@ def remove_copyright_string(article: str) -> str:
     """
     logger.debug("Removing copyright string")
 
-    if "©" not in article.split("\n")[-1:][0]:
+    if "©" not in article.rsplit("\n", maxsplit=1)[-1]:
         logger.warning("Copyright string not in last line")
 
     article = re.sub(r"©.*$", "", article).strip()
