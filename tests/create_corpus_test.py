@@ -5,6 +5,7 @@ from typing import Any, LiteralString
 
 import pandas as pd
 import pytest
+import typer
 from pandas import Timestamp
 
 import retriever.create_corpus
@@ -124,6 +125,24 @@ def test_create_corpus_keeps_row_with_unparsable_date() -> None:
     corpus = retriever.create_corpus.create_corpus(toc, [article])
 
     assert corpus["date_time"].isna().all()
+
+
+def test_create_corpus_applies_stop_words_and_caption_removal(caplog: Any) -> None:
+    toc: list[list[Any]] = [["Title", "Source One", "2020-12-04 05:26", 6]]
+    article = (
+        "Title\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\n"
+        "Ledare: En åsikt.\n\nBild: Namn Namnsson/TT\n\nBrödtext.\nLäs hela artikeln på https://a.se"
+    )
+
+    corpus = retriever.create_corpus.create_corpus(toc, [article], stop_words="Ledare|Krönika", remove_captions=True)
+    text: str = corpus["article_text"][0]
+
+    assert text.startswith("En åsikt.")
+    assert text.endswith("Brödtext.")
+    assert "Ledare:" not in text
+    assert "Bild:" not in text
+    assert corpus["url"][0] == "https://a.se"
+    assert "Missing values in df" not in caplog.text
 
 
 def test_get_toc_warns_about_unparsed_line(tmp_path: Path, caplog: Any) -> None:
@@ -248,6 +267,16 @@ Another paragraph."""
 def test_extract_pages_without_a_number() -> None:
     assert retriever.create_corpus.extract_pages(["Title", "Sida", "Publicerat på webb."]) is None
     assert retriever.create_corpus.extract_pages(["Title", "Sida 23", "Publicerat på webb."]) == "23"
+
+
+def test_extract_media_without_a_publicerat_line() -> None:
+    assert retriever.create_corpus.extract_media(["Title", "Sida 23"]) is None
+
+
+def test_extract_headers_logs_an_error_for_a_short_header(caplog: Any) -> None:
+    assert retriever.create_corpus.extract_headers("Title\nPublicerat på webb.") == ["Title", "Publicerat på webb."]
+
+    assert "Headers length is less than 3 in article starting with 'Title'" in caplog.text
 
 
 def test_check_title_warns_on_mismatch(caplog: Any) -> None:
@@ -377,10 +406,27 @@ def test_get_articles_drops_the_trailing_separator(tmp_path: Path) -> None:
     assert retriever.create_corpus.get_articles(str(file), 1) == ["first", "second"]
 
 
-def test_main_saves_short_headers_separately(export_dir: Path) -> None:
-    retriever.create_corpus.main(str(export_dir), save_short_headers=True)
+def test_main_saves_short_headers_separately(tmp_path: Path) -> None:
+    separator = "=" * 78
+    (tmp_path / "export.txt").write_text(
+        "Innehållsförteckning:\n"
+        "\n"
+        "> Short One, Source One, 2020-12-04 05:26\n"
+        "\n"
+        "> Long One, Source One, 2020-12-04 05:26\n"
+        "\n\n"
+        "Short One\nPublicerat på webb.\n\nKort text.\n"
+        f"\n{separator}\n\n"
+        "Long One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nLång text.\n",
+        encoding="utf-8",
+    )
 
-    assert (export_dir / "output/short_headers").is_dir()
+    retriever.create_corpus.main(str(tmp_path), save_short_headers=True)
+
+    short = tmp_path / "output/short_headers/source_one_short_one_202012040526_webb.txt"
+    assert short.read_text(encoding="utf-8") == "Short One\n\nKort text."
+    # an article with a full header belongs to output/ only
+    assert [f.name for f in (tmp_path / "output/short_headers").iterdir()] == [short.name]
 
 
 def test_remove_stop_words_from_article() -> None:
@@ -405,7 +451,7 @@ def test_main_logs_the_number_of_dropped_duplicates(tmp_path: Path, caplog: Any)
 
 
 def test_remove_copyright_string_drops_the_footer_separator() -> None:
-    tail = "© Aftonbladet<br>Alla artiklar är skyddade av upphovsrättslagen."
+    tail = "© Tidsskrift<br>Alla artiklar är skyddade av upphovsrättslagen."
 
     assert retriever.create_corpus.remove_copyright_string(f"Sista meningen. | |{tail}") == "Sista meningen."
     assert retriever.create_corpus.remove_copyright_string(f"Sista meningen.{tail}") == "Sista meningen."
@@ -417,3 +463,37 @@ def test_remove_copyright_string_tells_an_article_without_one_apart(caplog: Any)
 
     assert "No copyright string in article" in caplog.text
     assert "Copyright string not in last line" not in caplog.text
+
+
+def test_remove_copyright_string_warns_when_it_is_not_in_the_last_line(caplog: Any) -> None:
+    article = retriever.create_corpus.remove_copyright_string("Första raden med © Tidsskrift.\nSista raden.")
+
+    assert "Copyright string not in last line" in caplog.text
+    # the match runs to the end of the text, so a copyright string on an earlier line is left in place
+    assert article == "Första raden med © Tidsskrift.\nSista raden."
+
+
+def test_create_corpus_warns_when_the_copyright_string_leaves_retriever_behind(caplog: Any) -> None:
+    toc: list[list[Any]] = [["Title", "Source One", "2020-12-04 05:26", 6]]
+    article = "Title\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nBrödtext. Retriever.\n© Tidsskrift"
+
+    corpus = retriever.create_corpus.create_corpus(toc, [article], remove_copyright=True)
+
+    assert corpus["article_text"].tolist() == ["Brödtext. Retriever."]
+    assert "'Retriever' not removed from article 0" in caplog.text
+
+
+def test_remove_captions_from_article_drops_the_credit_line() -> None:
+    assert retriever.create_corpus.remove_captions_from_article("Bild: Namn Namnsson/TT\n\nBrödtext.") == "Brödtext."
+    assert retriever.create_corpus.remove_captions_from_article("Gata. Bild: Namn Namnsson/TT") == "Gata."
+    # the credit is only recognised when the name is capitalised the way the export writes it
+    assert retriever.create_corpus.remove_captions_from_article("Bild: namn namnsson/TT Brödtext.") == "Bild: namn namnsson/TT Brödtext."
+
+
+def test_cli_hands_main_to_typer(monkeypatch: pytest.MonkeyPatch) -> None:
+    runs: list[Any] = []
+    monkeypatch.setattr(typer, "run", runs.append)
+
+    retriever.create_corpus.cli()
+
+    assert runs == [retriever.create_corpus.main]

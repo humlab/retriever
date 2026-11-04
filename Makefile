@@ -6,7 +6,7 @@ clean:
 	@find . -type d -name '.mypy_cache' -exec rm -rf {} +
 
 coverage:
-	@uv run -m pytest --cov=src --cov-report=xml --cov-report=html
+	@uv run -m pytest --cov=src --cov-branch --cov-report=xml --cov-report=html
 
 format:
 	@uv run ruff format src tests
