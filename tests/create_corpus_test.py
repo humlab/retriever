@@ -402,3 +402,18 @@ def test_main_logs_the_number_of_dropped_duplicates(tmp_path: Path, caplog: Any)
 
     assert "Removed 2 duplicates" in caplog.text
     assert "Saving 1 unique articles" in caplog.text
+
+
+def test_remove_copyright_string_drops_the_footer_separator() -> None:
+    tail = "© Aftonbladet<br>Alla artiklar är skyddade av upphovsrättslagen."
+
+    assert retriever.create_corpus.remove_copyright_string(f"Sista meningen. | |{tail}") == "Sista meningen."
+    assert retriever.create_corpus.remove_copyright_string(f"Sista meningen.{tail}") == "Sista meningen."
+    assert retriever.create_corpus.remove_copyright_string(f"Sista meningen.\n{tail}") == "Sista meningen."
+
+
+def test_remove_copyright_string_tells_an_article_without_one_apart(caplog: Any) -> None:
+    retriever.create_corpus.remove_copyright_string("Bara brödtext.")
+
+    assert "No copyright string in article" in caplog.text
+    assert "Copyright string not in last line" not in caplog.text

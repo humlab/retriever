@@ -160,7 +160,7 @@ def create_corpus(
 
 
 def remove_copyright_string(article: str) -> str:
-    """Remove copyright string from article. The copyright string is assumed to be in the last line. If not, a warning is logged.
+    """Remove the copyright string from the end of the article text.
 
     Args:
         article (str): Article text.
@@ -170,10 +170,13 @@ def remove_copyright_string(article: str) -> str:
     """
     logger.debug("Removing copyright string")
 
-    if "©" not in article.rsplit("\n", maxsplit=1)[-1]:
+    if "©" not in article:
+        logger.warning("No copyright string in article")
+    elif "©" not in article.rsplit("\n", maxsplit=1)[-1]:
         logger.warning("Copyright string not in last line")
 
-    article = re.sub(r"©.*$", "", article).strip()
+    # the export glues the copyright text to the last line of the article, behind its " |" footer separator
+    article = re.sub(r"(?:\s*\|)*\s*©.*$", "", article).strip()
 
     return article
 
