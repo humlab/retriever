@@ -419,7 +419,7 @@ def main(
 
     # Remove duplicates. Keep the last article.
     document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last", inplace=True)
-    logger.info(f"Removed {len(duplicates)} duplicates")
+    logger.info(f"Removed {duplicates['count'].sum() - len(duplicates)} duplicates")
     logger.info(f"Saving {len(document_index)} unique articles")
 
     # Save articles to txt files

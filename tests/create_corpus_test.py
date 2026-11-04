@@ -387,3 +387,18 @@ def test_remove_stop_words_from_article() -> None:
     article = "Ledare: Att tycka rätt.\n\nBrödtext."
 
     assert retriever.create_corpus.remove_stop_words_from_article(article, "Ledare|Krönika") == "Att tycka rätt.\n\nBrödtext."
+
+
+def test_main_logs_the_number_of_dropped_duplicates(tmp_path: Path, caplog: Any) -> None:
+    titles = ["Blixten: Här är läget", "Blixten - Här är läget", "Blixten -  Här  är läget"]
+    entries = "".join(f"> {title}, Source One, 2020-12-04 05:26\n" for title in titles)
+    blocks = [f"{title}\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nText {i}." for i, title in enumerate(titles, start=1)]
+    (tmp_path / "export.txt").write_text(
+        "Innehållsförteckning:\n\n" + entries + "\n\n" + ("\n" + "=" * 78 + "\n\n").join(blocks) + "\n",
+        encoding="utf-8",
+    )
+
+    retriever.create_corpus.main(str(tmp_path))
+
+    assert "Removed 2 duplicates" in caplog.text
+    assert "Saving 1 unique articles" in caplog.text
