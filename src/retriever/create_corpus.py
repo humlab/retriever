@@ -452,5 +452,10 @@ def main(
     logger.success(f"Saved document_index to {output_folder}/document_index.csv")
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    """Command line entry point, see main() for the arguments."""
     typer.run(main)
+
+
+if __name__ == "__main__":
+    cli()
