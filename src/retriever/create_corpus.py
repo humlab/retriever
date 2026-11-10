@@ -189,7 +189,8 @@ CREDIT = re.compile(CREDIT_LABEL + CREDIT_NAMES + r"(?:" + CREDIT_AGENCIES + r"|
 
 def remove_captions_from_article(article: str) -> str:
     """Remove photo credits ("Bild: Name/TT") from the article text.
-    A photo credit is only cut where it ends at a marker the export really uses: an agency slash (/TT, /SvD),
+
+    Note: A photo credit is only cut where it ends at a marker the export really uses: an agency slash (/TT, /SvD),
     the " |" subject separator, or the end of the line. Anywhere else it is glued to the sentence that
     follows and those words would be cut with it, so such a credit stays put and is logged instead.
     Two words of name at most, each one capitalised the way the export writes it (Namn Efternamn, TT, Arkivbild).
