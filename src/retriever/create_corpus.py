@@ -181,18 +181,33 @@ def remove_copyright_string(article: str) -> str:
     return article
 
 
+CREDIT_LABEL = r"(?:Image-text:\s*)?Bild:\s*"
+CREDIT_NAMES = r"(?:[A-ZÅÄÖ][^\W\d_]*(?:[ ,]+[A-ZÅÄÖ][^\W\d_]*){0,1})?"
+CREDIT_AGENCIES = r"(?:\s*/+\s*[^\W\d_]+)+"
+CREDIT = re.compile(CREDIT_LABEL + CREDIT_NAMES + r"(?:" + CREDIT_AGENCIES + r"|(?:\s\||$))")
+
+
 def remove_captions_from_article(article: str) -> str:
-    """Remove captions from article.
+    """Remove photo credits ("Bild: Name/TT") from the article text.
+    A photo credit is only cut where it ends at a marker the export really uses: an agency slash (/TT, /SvD),
+    the " |" subject separator, or the end of the line. Anywhere else it is glued to the sentence that
+    follows and those words would be cut with it, so such a credit stays put and is logged instead.
+    Two words of name at most, each one capitalised the way the export writes it (Namn Efternamn, TT, Arkivbild).
 
     Args:
         article (str): Article text.
 
     Returns:
-        str: Article text without captions.
+        str: Article text without the credits that can be told apart from the body.
     """
-    logger.debug("Removing captions like 'Bild: [Name [Name]]'")
-    article = re.sub(r"Bild: ([A-Z][a-z]+(?: [A-Z][a-z]+)*)(/TT)?\s?", "", article).strip()
-    return article
+    lines: list[str] = []
+    for line in article.split("\n"):
+        match = CREDIT.search(line)
+        if match is None and "Bild:" in line:
+            logger.warning(f"Caption not recognised: {line}")
+        cut = (line[: match.start()] + line[match.end() :].lstrip()).rstrip() if match else line
+        lines.append(cut)
+    return "\n".join(lines).strip()
 
 
 def remove_stop_words_from_article(article: str, stop_words: str) -> str:
