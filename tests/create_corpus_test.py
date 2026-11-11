@@ -5,6 +5,7 @@ from typing import Any, LiteralString
 import pandas as pd
 import pytest
 import typer
+from loguru import logger
 from pandas import Timestamp
 
 import retriever.create_corpus
@@ -421,6 +422,16 @@ def test_get_articles_drops_the_trailing_separator(tmp_path: Path) -> None:
     file.write_text(f"first{separator}\n\nsecond{separator}\n", encoding="utf-8")
 
     assert retriever.create_corpus.get_articles(str(file), 1) == ["first", "second"]
+
+
+def test_main_closes_its_log_file(export_dir: Path) -> None:
+    _, logs = run_main(export_dir)
+    written_during_the_run = (logs / "run.log").read_text(encoding="utf-8")
+
+    logger.warning("Warning after the run was over")
+
+    # a handler left behind would append this warning to the finished run's log
+    assert (logs / "run.log").read_text(encoding="utf-8") == written_during_the_run
 
 
 def test_main_saves_short_headers_separately(tmp_path: Path) -> None:

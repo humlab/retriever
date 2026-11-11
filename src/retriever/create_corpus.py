@@ -410,78 +410,85 @@ def main(
     log_folder: str = f"{LOGS_FOLDER}/{run}"
     os.makedirs(output_folder, exist_ok=True)
     os.makedirs(log_folder, exist_ok=True)
-    logger.add(f"{log_folder}/run.log", level="WARNING", encoding="utf8")
 
-    all_metadata: list[pd.DataFrame] = []  # List to store all metadata
+    handler_id: int = logger.add(f"{log_folder}/run.log", level="WARNING", encoding="utf8", mode="w")
+    try:
+        all_metadata: list[pd.DataFrame] = []  # List to store all metadata
 
-    # sorted: the article order here fixes document_id and which copy of a duplicate survives
-    for filename in sorted(os.listdir(input_folder)):
-        if not filename.endswith(".txt"):
-            continue
-        filepath: str = f"{input_folder}/{filename}"
-        toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
-        articles: list[str] = get_articles(filepath, offset)
+        # sorted: the article order here fixes document_id and which copy of a duplicate survives
+        for filename in sorted(os.listdir(input_folder)):
+            if not filename.endswith(".txt"):
+                continue
+            filepath: str = f"{input_folder}/{filename}"
+            toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
+            articles: list[str] = get_articles(filepath, offset)
 
-        df: pd.DataFrame = add_document_names(create_corpus(toc, articles, stop_words, remove_captions, remove_copyright), filename)
+            df: pd.DataFrame = add_document_names(create_corpus(toc, articles, stop_words, remove_captions, remove_copyright), filename)
 
-        all_metadata.append(df)
+            all_metadata.append(df)
 
-    # Combine metadata
-    document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
-    logger.info(f"Found {len(document_index)} articles")
-    document_index["document_id"] = document_index.index
+        # Combine metadata
+        document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
+        logger.info(f"Found {len(document_index)} articles")
+        document_index["document_id"] = document_index.index
 
-    # Check for duplicates
-    duplicates: pd.DataFrame = document_index[document_index.duplicated(subset=["document_name", "source", "date", "media"], keep=False)]
-    logger.info(f"Found {len(duplicates)} non-unique articles")
+        # Check for duplicates
+        not_unique = document_index.duplicated(subset=["document_name", "source", "date", "media"], keep=False)
+        duplicates: pd.DataFrame = document_index[not_unique]
+        logger.info(f"Found {len(duplicates)} non-unique articles")
 
-    # Log differences between duplicates
-    log_diffs(duplicates, log_folder, save_diffs=False)
+        # Log differences between duplicates
+        log_diffs(duplicates, log_folder, save_diffs=False)
 
-    # Save duplicates to csv
-    def join_urls(urls: Any) -> str:
-        return ", ".join(url for url in urls if url)  # url is None when the export has no url, so it is skipped
+        # Save duplicates to csv
+        def join_urls(urls: Any) -> str:
+            return ", ".join(url for url in urls if url)  # url is None when the export has no url, so it is skipped
 
-    duplicates = (
-        duplicates.groupby(["document_name", "source", "date", "media"]).agg(urls=("url", join_urls), count=("url", "size")).reset_index()
-    )
-    duplicates.to_csv(f"{log_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
+        duplicates = (
+            duplicates.groupby(["document_name", "source", "date", "media"])
+            .agg(urls=("url", join_urls), count=("url", "size"))
+            .reset_index()
+        )
+        duplicates.to_csv(f"{log_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
 
-    # Punctuation is stripped from document_name, so two different articles can collide on one file: the lost text is not in duplicates.csv
-    texts_per_name = document_index.groupby("document_name")["article_text"].nunique()
-    for name in texts_per_name[texts_per_name > 1].index:
-        logger.warning(f"Different articles share the file '{name}.txt'; only the last one was saved")
+        # Punctuation is stripped from document_name, so two different articles can collide on one file;
+        # duplicates.csv does not cover that
+        texts_per_name = document_index.groupby("document_name")["article_text"].nunique()
+        for name in texts_per_name[texts_per_name > 1].index:
+            logger.warning(f"Different articles share the file '{name}.txt'; only the last one was saved")
 
-    # Remove duplicates. Keep the last article.
-    document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last", inplace=True)
-    logger.info(f"Removed {duplicates['count'].sum() - len(duplicates)} duplicates")
-    logger.info(f"Saving {len(document_index)} unique articles")
+        # Remove duplicates. Keep the last article.
+        document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last", inplace=True)
+        logger.info(f"Removed {duplicates['count'].sum() - len(duplicates)} duplicates")
+        logger.info(f"Saving {len(document_index)} unique articles")
 
-    # Save articles to txt files
-    for _, metadata in document_index.iterrows():
-        with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
-            f.write(metadata["title"] + "\n\n")
-            f.write(metadata["article_text"])
-    logger.success(f"Saved {len([f for f in os.listdir(output_folder) if f.endswith('.txt')])} articles to {output_folder}")
-
-    # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
-    if save_short_headers:
-        short_headers_folder: str = f"{output_folder}/short_headers"
-        os.makedirs(short_headers_folder, exist_ok=True)
-        short_headers = document_index[document_index.header_lenght < MIN_HEADER_LENGTH]
-        for _, metadata in short_headers.iterrows():
-            with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
+        # Save articles to txt files
+        for _, metadata in document_index.iterrows():
+            with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
                 f.write(metadata["title"] + "\n\n")
                 f.write(metadata["article_text"])
-        logger.success(
-            f"Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith('.txt')])} articles "
-            f"with short headers to {short_headers_folder}"
-        )
+        logger.success(f"Saved {len([f for f in os.listdir(output_folder) if f.endswith('.txt')])} articles to {output_folder}")
 
-    # Save document_index to csv
-    document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
-    document_index.to_csv(f"{log_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
-    logger.success(f"Saved document_index to {log_folder}/document_index.csv")
+        # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
+        if save_short_headers:
+            short_headers_folder: str = f"{output_folder}/short_headers"
+            os.makedirs(short_headers_folder, exist_ok=True)
+            short_headers = document_index[document_index.header_lenght < MIN_HEADER_LENGTH]
+            for _, metadata in short_headers.iterrows():
+                with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
+                    f.write(metadata["title"] + "\n\n")
+                    f.write(metadata["article_text"])
+            logger.success(
+                f"Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith('.txt')])} articles "
+                f"with short headers to {short_headers_folder}"
+            )
+
+        # Save document_index to csv
+        document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
+        document_index.to_csv(f"{log_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
+        logger.success(f"Saved document_index to {log_folder}/document_index.csv")
+    finally:
+        logger.remove(handler_id)
 
 
 def cli() -> None:
