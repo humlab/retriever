@@ -225,7 +225,8 @@ def remove_stop_words_from_article(article: str, stop_words: str) -> str:
         str: Article text without the stop words.
     """
     logger.debug(f"Removing stop words: '{', '.join(stop_words.split('|'))}'")
-    return re.sub(rf"({stop_words}):\s?", "", article).strip()
+    words = "|".join(re.escape(word) for word in stop_words.split("|") if word)
+    return re.sub(rf"({words}):\s?", "", article).strip()
 
 
 def check_title(title: object, article: str) -> None:

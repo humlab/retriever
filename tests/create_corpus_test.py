@@ -452,6 +452,11 @@ def test_remove_stop_words_from_article() -> None:
     assert retriever.create_corpus.remove_stop_words_from_article(article, "Ledare|Krönika") == "Att tycka rätt.\n\nBrödtext."
 
 
+def test_remove_stop_words_takes_the_words_as_text_not_as_a_pattern() -> None:
+    assert retriever.create_corpus.remove_stop_words_from_article("AxB: Fel.\n\nBrödtext.", "A.B") == "AxB: Fel.\n\nBrödtext."
+    assert retriever.create_corpus.remove_stop_words_from_article("Brödtext: hit.\n\nSlut.", "Ledare|") == "Brödtext: hit.\n\nSlut."
+
+
 def test_main_logs_the_number_of_dropped_duplicates(tmp_path: Path, caplog: Any) -> None:
     titles = ["Blixten: Här är läget", "Blixten - Här är läget", "Blixten -  Här  är läget"]
     entries = "".join(f"> {title}, Source One, 2020-12-04 05:26\n" for title in titles)
