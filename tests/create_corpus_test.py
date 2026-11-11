@@ -76,7 +76,7 @@ def test_get_toc(input_file: Any) -> None:
         ["Title One", "Source One", "2020-12-04 05:26", 6],
         ["Title Two", "Source Two", "2023-12-04 04:32", 8],
     ]
-    expected_offset = 11
+    expected_offset = 9  # the line below the last toc entry (line 8); the blank lines in between are stripped away
 
     assert toc == expected_toc
     assert offset == expected_offset
@@ -414,6 +414,22 @@ def test_main_document_id_does_not_follow_filesystem_order(export_dir: Path, mon
     after = pd.read_csv(logs / "document_index.csv", sep=";")
 
     assert dict(zip(after.document_name, after.document_id)) == dict(zip(before.document_name, before.document_id))
+
+
+def test_get_articles_starts_below_the_last_toc_line(tmp_path: Path) -> None:
+    article = "Title One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nText one."
+
+    for blank_lines in (1, 2, 3):  # the export may write any number of them; the title line must stay
+        file = tmp_path / f"input_{blank_lines}.txt"
+        file.write_text(
+            "Innehållsförteckning:\n\n> Title One, Source One, 2020-12-04 05:26\n" + "\n" * blank_lines + article + "\n",
+            encoding="utf-8",
+        )
+
+        toc, offset = retriever.create_corpus.get_toc(str(file), "Innehållsförteckning:", 2)
+
+        assert [entry[0] for entry in toc] == ["Title One"]
+        assert retriever.create_corpus.get_articles(str(file), offset) == [article], f"{blank_lines} blank lines"
 
 
 def test_get_articles_drops_the_trailing_separator(tmp_path: Path) -> None:

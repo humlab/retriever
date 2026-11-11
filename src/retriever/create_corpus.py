@@ -23,7 +23,8 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
         max_not_matched_lines (int): Number of lines not starting with '>' to read before breaking.
 
     Returns:
-        tuple[list[list[int | str | Any]], int]: Table of contents and offset.
+        tuple[list[list[int | str | Any]], int]: Table of contents and the line the articles start on,
+            which is the line after the last toc entry — however many blank lines the export puts there.
     """
     data: list[list[int | str | Any]] = []
     with open(filename, "r", encoding="utf-8") as file:
@@ -35,7 +36,7 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
     # Counter for lines not starting with '>'
     not_matched_lines = 0
 
-    toc_line_number = 0
+    last_toc_line = 0  # the articles start below this one, wherever the toc really ends
     for toc_line_number, line in enumerate(lines, start=1):
         # If the line contains `toc_name`, set the flag to True
         if toc_name in line:
@@ -50,6 +51,7 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
                 title, source, date_str = match.groups()
                 date = date_str
                 data.append([title, source, date, toc_line_number])
+                last_toc_line = toc_line_number
                 # Reset not matched lines counter
                 not_matched_lines = 0
             else:
@@ -62,7 +64,7 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
 
     logger.debug(f"Found {len(data)} articles in {filename}")
 
-    return data, toc_line_number  # "title", "source", "date", "toc_line_number"
+    return data, last_toc_line + 1  # "title", "source", "date", "toc_line_number"
 
 
 def get_articles(filename: str, offset: int) -> list[str]:
