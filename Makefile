@@ -22,6 +22,6 @@ typing:
 
 
 create_corpus:
-	@uv run retriever data
+	@uv run retriever data/input
 
 .PHONY: clean coverage format ruff test typing create_corpus

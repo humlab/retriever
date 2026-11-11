@@ -2,6 +2,7 @@
 import difflib
 import os
 import re
+from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -9,6 +10,8 @@ import typer
 from loguru import logger
 
 MIN_HEADER_LENGTH = 3
+PROCESSED_FOLDER = "data/processed"  # article text, one subfolder per run
+LOGS_FOLDER = "data/logs"  # run.log and the csv files, one subfolder per run
 
 
 def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[list[list[int | str | Any]], int]:
@@ -356,6 +359,35 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
                     f.write(diff_text)
 
 
+def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
+    """Add the columns that say where an article is saved and which copies count as one article.
+
+    Args:
+        corpus (pd.DataFrame): One export, as returned by create_corpus.
+        input_file (str): Name of the export file the rows were read from.
+
+    Returns:
+        pd.DataFrame: The same corpus with document_name, filename, year and input_file added.
+    """
+    corpus["document_name"] = corpus.source.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip()
+    corpus["document_name"] = (
+        corpus.document_name
+        + "_"
+        + corpus.title.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip().str.strip("_").str[:60]
+    )
+    corpus["document_name"] = (
+        corpus.document_name
+        + "_"
+        + corpus.date.fillna("").str.replace(" ", "").str.replace(":", "").str.replace("-", "")
+        + "_"
+        + corpus.media.fillna("")
+    )
+    corpus["filename"] = corpus.document_name + ".txt"
+    corpus["year"] = corpus["date"].str[:4]
+    corpus["input_file"] = input_file
+    return corpus
+
+
 def main(
     input_folder: str,
     save_short_headers: bool = False,
@@ -366,19 +398,20 @@ def main(
     """Main function.
 
     Args:
-        input_folder (str): Input folder.
+        input_folder (str): Folder with the export files.
         save_short_headers (bool, optional): Save files with short headers. Defaults to False.
         stop_words (str, optional): Stop words. A string with stop words separated by '|'. Defaults to None.
         remove_captions (bool, optional): Remove captions from article. Defaults to False.
         remove_copyright (bool, optional): Remove copyright string from article. Defaults to False.
     """
-    output_folder: str = f"{input_folder}/output"
+    run: str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    output_folder: str = f"{PROCESSED_FOLDER}/{run}"
+    log_folder: str = f"{LOGS_FOLDER}/{run}"
     os.makedirs(output_folder, exist_ok=True)
-    logger.add(f"{output_folder}/run.log", level="WARNING", encoding="utf8")
+    os.makedirs(log_folder, exist_ok=True)
+    logger.add(f"{log_folder}/run.log", level="WARNING", encoding="utf8")
 
     all_metadata: list[pd.DataFrame] = []  # List to store all metadata
-
-    article_counts: dict[str, int] = {}
 
     # sorted: the article order here fixes document_id and which copy of a duplicate survives
     for filename in sorted(os.listdir(input_folder)):
@@ -388,32 +421,13 @@ def main(
         toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
         articles: list[str] = get_articles(filepath, offset)
 
-        df: pd.DataFrame = create_corpus(toc, articles, stop_words, remove_captions, remove_copyright)
+        df: pd.DataFrame = add_document_names(create_corpus(toc, articles, stop_words, remove_captions, remove_copyright), filename)
 
-        df["document_name"] = df.source.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip()
-        df["document_name"] = (
-            df.document_name
-            + "_"
-            + df.title.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip().str.strip("_").str[:60]
-        )
-        df["document_name"] = (
-            df.document_name
-            + "_"
-            + df.date.fillna("").str.replace(" ", "").str.replace(":", "").str.replace("-", "")
-            + "_"
-            + df.media.fillna("")
-        )
-        df["filename"] = df.document_name + ".txt"
-        df["year"] = df["date"].str[:4]
-        df["input_file"] = filename
-
-        article_counts[filename] = len(df)
         all_metadata.append(df)
-
-    logger.info(f"Found {sum(article_counts.values())} articles")
 
     # Combine metadata
     document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
+    logger.info(f"Found {len(document_index)} articles")
     document_index["document_id"] = document_index.index
 
     # Check for duplicates
@@ -421,7 +435,7 @@ def main(
     logger.info(f"Found {len(duplicates)} non-unique articles")
 
     # Log differences between duplicates
-    log_diffs(duplicates, output_folder, save_diffs=False)
+    log_diffs(duplicates, log_folder, save_diffs=False)
 
     # Save duplicates to csv
     def join_urls(urls: Any) -> str:
@@ -430,7 +444,7 @@ def main(
     duplicates = (
         duplicates.groupby(["document_name", "source", "date", "media"]).agg(urls=("url", join_urls), count=("url", "size")).reset_index()
     )
-    duplicates.to_csv(f"{output_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
+    duplicates.to_csv(f"{log_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
 
     # Punctuation is stripped from document_name, so two different articles can collide on one file: the lost text is not in duplicates.csv
     texts_per_name = document_index.groupby("document_name")["article_text"].nunique()
@@ -465,8 +479,8 @@ def main(
 
     # Save document_index to csv
     document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
-    document_index.to_csv(f"{output_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
-    logger.success(f"Saved document_index to {output_folder}/document_index.csv")
+    document_index.to_csv(f"{log_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
+    logger.success(f"Saved document_index to {log_folder}/document_index.csv")
 
 
 def cli() -> None:

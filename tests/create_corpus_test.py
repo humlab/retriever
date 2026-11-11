@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 from typing import Any, LiteralString
 
@@ -292,6 +291,26 @@ def test_check_title_stays_quiet_on_match(caplog: Any) -> None:
     assert caplog.text == ""
 
 
+@pytest.fixture(name="run_folders", autouse=True)
+def fixture_run_folders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Send every run into folders under tmp_path instead of the real data/processed and outputs."""
+    monkeypatch.setattr(retriever.create_corpus, "PROCESSED_FOLDER", str(tmp_path / "processed"))
+    monkeypatch.setattr(retriever.create_corpus, "LOGS_FOLDER", str(tmp_path / "logs"))
+
+
+def newest_run(root: Path) -> Path:
+    """The folder of the latest run; the names are timestamps, so the last one in sorted order is the newest."""
+    runs: list[Path] = sorted(path for path in root.iterdir() if path.is_dir())
+    assert runs, f"no run folder under {root}"
+    return runs[-1]
+
+
+def run_main(folder: Path, **flags: Any) -> tuple[Path, Path]:
+    """Run main() the way the command line does and hand back the article folder and log folder it just made."""
+    retriever.create_corpus.main(str(folder), **flags)
+    return newest_run(folder / "processed"), newest_run(folder / "logs")
+
+
 def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, caplog: Any) -> None:
     (tmp_path / "export.txt").write_text(
         "Innehållsförteckning:\n"
@@ -309,16 +328,16 @@ def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, cap
         encoding="utf-8",
     )
 
-    retriever.create_corpus.main(str(tmp_path))
+    articles, logs = run_main(tmp_path)
 
     assert "WARNING" in caplog.text
     assert "Different articles share the file" in caplog.text
-    saved = [f for f in (tmp_path / "output").iterdir() if f.suffix == ".txt"]
+    saved = [f for f in articles.iterdir() if f.suffix == ".txt"]
     assert len(saved) == 1
     assert "Text two." in saved[0].read_text(encoding="utf-8")
 
     # the pair is listed, with the urls it has (none here) and how many copies were found
-    duplicates = pd.read_csv(tmp_path / "output/duplicates.csv", sep=";")
+    duplicates = pd.read_csv(logs / "duplicates.csv", sep=";")
     assert duplicates["urls"].isna().all()
     assert duplicates["count"].tolist() == [2]
 
@@ -353,9 +372,8 @@ def fixture_export_dir(tmp_path: Path) -> Path:
 
 
 def test_main_writes_articles_and_index(export_dir: Path) -> None:
-    retriever.create_corpus.main(str(export_dir))
+    output, logs = run_main(export_dir)
 
-    output = export_dir / "output"
     saved = sorted(f.name for f in output.iterdir() if f.suffix == ".txt")
     assert saved == [
         "source_one_article_one_202012040800_webb.txt",
@@ -364,7 +382,7 @@ def test_main_writes_articles_and_index(export_dir: Path) -> None:
     ]
     assert (output / saved[0]).read_text(encoding="utf-8") == "Article One\n\nText One."
 
-    index = pd.read_csv(output / "document_index.csv", sep=";", dtype={"year": str})  # year is a label in the file
+    index = pd.read_csv(logs / "document_index.csv", sep=";", dtype={"year": str})  # year is a label in the file
     assert list(index.columns) == [
         "title",
         "source",
@@ -383,17 +401,16 @@ def test_main_writes_articles_and_index(export_dir: Path) -> None:
     assert list(index.input_file) == ["a_export.txt", "a_export.txt", "b_export.txt"]
     assert list(index.year.unique()) == ["2020"]
     assert not index.date_time.isna().any()
-    assert (output / "duplicates.csv").read_text(encoding="utf-8-sig").strip() == "document_name;source;date;media;urls;count"
+    assert (logs / "duplicates.csv").read_text(encoding="utf-8-sig").strip() == "document_name;source;date;media;urls;count"
 
 
 def test_main_document_id_does_not_follow_filesystem_order(export_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    retriever.create_corpus.main(str(export_dir))
-    before = pd.read_csv(export_dir / "output/document_index.csv", sep=";")
+    _, logs = run_main(export_dir)
+    before = pd.read_csv(logs / "document_index.csv", sep=";")
 
-    shutil.rmtree(export_dir / "output")
     monkeypatch.setattr(retriever.create_corpus, "os", _ReversedListdir())
-    retriever.create_corpus.main(str(export_dir))
-    after = pd.read_csv(export_dir / "output/document_index.csv", sep=";")
+    _, logs = run_main(export_dir)
+    after = pd.read_csv(logs / "document_index.csv", sep=";")
 
     assert dict(zip(after.document_name, after.document_id)) == dict(zip(before.document_name, before.document_id))
 
@@ -421,12 +438,12 @@ def test_main_saves_short_headers_separately(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    retriever.create_corpus.main(str(tmp_path), save_short_headers=True)
+    articles, _logs = run_main(tmp_path, save_short_headers=True)
 
-    short = tmp_path / "output/short_headers/source_one_short_one_202012040526_webb.txt"
+    short = articles / "short_headers/source_one_short_one_202012040526_webb.txt"
     assert short.read_text(encoding="utf-8") == "Short One\n\nKort text."
-    # an article with a full header belongs to output/ only
-    assert [f.name for f in (tmp_path / "output/short_headers").iterdir()] == [short.name]
+    # an article with a full header belongs to the run folder only
+    assert [f.name for f in (articles / "short_headers").iterdir()] == [short.name]
 
 
 def test_remove_stop_words_from_article() -> None:
@@ -444,7 +461,7 @@ def test_main_logs_the_number_of_dropped_duplicates(tmp_path: Path, caplog: Any)
         encoding="utf-8",
     )
 
-    retriever.create_corpus.main(str(tmp_path))
+    run_main(tmp_path)
 
     assert "Removed 2 duplicates" in caplog.text
     assert "Saving 1 unique articles" in caplog.text
