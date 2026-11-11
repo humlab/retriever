@@ -551,6 +551,17 @@ def test_remove_captions_from_article_drops_the_credit_line() -> None:
     assert retriever.create_corpus.remove_captions_from_article("Gata. Bild: Namn Namnsson/TT") == "Gata."
     # the credit is only recognised when the name is capitalised the way the export writes it
     assert retriever.create_corpus.remove_captions_from_article("Bild: namn namnsson/TT Brödtext.") == "Bild: namn namnsson/TT Brödtext."
+    # the two other markers the export really ends a credit at: end of the line, and the " |" separator
+    assert retriever.create_corpus.remove_captions_from_article("Bild: Leif Leifsson/Arkiv") == ""
+    assert retriever.create_corpus.remove_captions_from_article("Bild: Pär Pärsson | Ändamål för texten") == "Ändamål för texten"
+
+
+def test_remove_captions_from_article_keeps_a_credit_glued_to_the_body(caplog: Any) -> None:
+    """A credit with no marker after it says nothing about where it ends, so the body words stay and it is logged."""
+    glued = "Bild: Nam Namnsson någonting någonting. Brödtext."
+
+    assert retriever.create_corpus.remove_captions_from_article(glued) == glued
+    assert f"Caption not recognised: {glued}" in caplog.text
 
 
 def test_cli_hands_main_to_typer(monkeypatch: pytest.MonkeyPatch) -> None:
