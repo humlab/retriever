@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name
 import difflib
 import os
 import re
