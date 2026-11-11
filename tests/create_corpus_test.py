@@ -156,6 +156,20 @@ def test_get_toc_warns_about_unparsed_line(tmp_path: Path, caplog: Any) -> None:
     assert "Unparsed toc line 4: '> B Title, B Source'" in caplog.text
 
 
+def test_main_names_the_file_that_has_no_table_of_contents(tmp_path: Path) -> None:
+    (tmp_path / "dumm.txt").write_text("Någon text som inte är ett export.\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="dumm.txt"):
+        retriever.create_corpus.main(str(tmp_path))
+
+
+def test_main_names_the_folder_that_has_no_exports(tmp_path: Path) -> None:
+    (tmp_path / "läs_mig.md").write_text("Mappen innehåller inga export.\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="No .txt exports in"):
+        retriever.create_corpus.main(str(tmp_path))
+
+
 @pytest.fixture(name="duplicates")
 def fixture_duplicates() -> pd.DataFrame:
     return pd.DataFrame(

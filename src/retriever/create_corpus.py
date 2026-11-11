@@ -62,6 +62,9 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
         if not_matched_lines > max_not_matched_lines:
             break
 
+    if not data:
+        raise ValueError(f"No table of contents entries found in {filename}")
+
     logger.debug(f"Found {len(data)} articles in {filename}")
 
     return data, last_toc_line + 1  # "title", "source", "date", "toc_line_number"
@@ -391,6 +394,23 @@ def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
     return corpus
 
 
+def save_articles(document_index: pd.DataFrame, folder: str) -> int:
+    """Write one .txt file per article: the title, a blank line, the body.
+
+    Args:
+        document_index (pd.DataFrame): The articles to save, with their filename column.
+        folder (str): Folder to write into.
+
+    Returns:
+        int: The number of .txt files in the folder afterwards.
+    """
+    for _, metadata in document_index.iterrows():
+        with open(f"{folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
+            f.write(metadata["title"] + "\n\n")
+            f.write(metadata["article_text"])
+    return len([name for name in os.listdir(folder) if name.endswith(".txt")])
+
+
 def main(
     input_folder: str,
     save_short_headers: bool = False,
@@ -429,6 +449,9 @@ def main(
 
             all_metadata.append(df)
 
+        if not all_metadata:
+            raise ValueError(f"No .txt exports in {input_folder}")
+
         # Combine metadata
         document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
         logger.info(f"Found {len(document_index)} articles")
@@ -465,25 +488,15 @@ def main(
         logger.info(f"Saving {len(document_index)} unique articles")
 
         # Save articles to txt files
-        for _, metadata in document_index.iterrows():
-            with open(f"{output_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
-                f.write(metadata["title"] + "\n\n")
-                f.write(metadata["article_text"])
-        logger.success(f"Saved {len([f for f in os.listdir(output_folder) if f.endswith('.txt')])} articles to {output_folder}")
+        saved: int = save_articles(document_index, output_folder)
+        logger.success(f"Saved {saved} articles to {output_folder}")
 
         # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
         if save_short_headers:
             short_headers_folder: str = f"{output_folder}/short_headers"
             os.makedirs(short_headers_folder, exist_ok=True)
-            short_headers = document_index[document_index.header_lenght < MIN_HEADER_LENGTH]
-            for _, metadata in short_headers.iterrows():
-                with open(f"{short_headers_folder}/{metadata['filename']}", "w", encoding="utf-8") as f:
-                    f.write(metadata["title"] + "\n\n")
-                    f.write(metadata["article_text"])
-            logger.success(
-                f"Saved {len([f for f in os.listdir(short_headers_folder) if f.endswith('.txt')])} articles "
-                f"with short headers to {short_headers_folder}"
-            )
+            short: int = save_articles(document_index[document_index.header_lenght < MIN_HEADER_LENGTH], short_headers_folder)
+            logger.success(f"Saved {short} articles with short headers to {short_headers_folder}")
 
         # Save document_index to csv
         document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
