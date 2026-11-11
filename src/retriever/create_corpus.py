@@ -460,7 +460,7 @@ def main(
             logger.warning(f"Different articles share the file '{name}.txt'; only the last one was saved")
 
         # Remove duplicates. Keep the last article.
-        document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last", inplace=True)
+        document_index = document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last")
         logger.info(f"Removed {duplicates['count'].sum() - len(duplicates)} duplicates")
         logger.info(f"Saving {len(document_index)} unique articles")
 
