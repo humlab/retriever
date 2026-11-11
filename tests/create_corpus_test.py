@@ -55,7 +55,6 @@ def fixture_corpus() -> pd.DataFrame:
                 0: "Title One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nText one.",
                 1: "Title Two\nSource Two, 2020-12-04 04:32\nPublicerat i print.\n\nText two.",
             },
-            "header_lenght": {0: 3, 1: 3},
             "header": {
                 0: "Title One\nSource One, 2020-12-04 05:26\nPublicerat på webb.",
                 1: "Title Two\nSource Two, 2020-12-04 04:32\nPublicerat i print.",
@@ -182,7 +181,6 @@ def fixture_duplicates() -> pd.DataFrame:
                 0: "Title\nSource, 2020-12-04 05:26\nPublicerat på webb.\n\nText.",
                 1: "Title\nSource, 2020-12-04 05:26\nPublicerat på webb.\n\nDifferent text.",
             },
-            "header_lenght": {0: 3, 1: 3},
             "header": {
                 0: "Title\nSource, 2020-12-04 05:26\nPublicerat på webb.",
                 1: "Title\nSource, 2020-12-04 05:26\nPublicerat på webb.",
@@ -244,7 +242,7 @@ Publicerat på webb.
 
 Text."""
 
-    assert retriever.create_corpus.fix_header(article_text)[0] == expected_output
+    assert retriever.create_corpus.fix_header(article_text) == expected_output
 
 
 @pytest.fixture(name="article_text_multiline")
@@ -275,7 +273,7 @@ Paragraph.
 
 Another paragraph."""
 
-    assert retriever.create_corpus.fix_header(article_text_multiline)[0] == expected_output
+    assert retriever.create_corpus.fix_header(article_text_multiline) == expected_output
 
 
 def test_extract_pages_without_a_number() -> None:
@@ -289,6 +287,8 @@ def test_extract_media_without_a_publicerat_line() -> None:
 
 def test_extract_headers_logs_an_error_for_a_short_header(caplog: Any) -> None:
     assert retriever.create_corpus.extract_headers("Title\nPublicerat på webb.") == ["Title", "Publicerat på webb."]
+    # a short header is not saved anywhere special any more, this log line is the only signal that it exists
+    assert "Headers length is less than 3 in article starting with 'Title'" in caplog.text
 
     assert "Headers length is less than 3 in article starting with 'Title'" in caplog.text
 
@@ -462,29 +462,6 @@ def test_main_closes_its_log_file(export_dir: Path) -> None:
 
     # a handler left behind would append this warning to the finished run's log
     assert (logs / "run.log").read_text(encoding="utf-8") == written_during_the_run
-
-
-def test_main_saves_short_headers_separately(tmp_path: Path) -> None:
-    separator = "=" * 78
-    (tmp_path / "export.txt").write_text(
-        "Innehållsförteckning:\n"
-        "\n"
-        "> Short One, Source One, 2020-12-04 05:26\n"
-        "\n"
-        "> Long One, Source One, 2020-12-04 05:26\n"
-        "\n\n"
-        "Short One\nPublicerat på webb.\n\nKort text.\n"
-        f"\n{separator}\n\n"
-        "Long One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nLång text.\n",
-        encoding="utf-8",
-    )
-
-    articles, _logs = run_main(tmp_path, save_short_headers=True)
-
-    short = articles / "short_headers/source_one_short_one_202012040526_webb.txt"
-    assert short.read_text(encoding="utf-8") == "Short One\n\nKort text."
-    # an article with a full header belongs to the run folder only
-    assert [f.name for f in (articles / "short_headers").iterdir()] == [short.name]
 
 
 def test_remove_stop_words_from_article() -> None:

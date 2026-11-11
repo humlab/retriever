@@ -118,7 +118,7 @@ def create_corpus(
         title, source, date = toc[i][0], toc[i][1], toc[i][2]
         logger.debug(f"Processing article {i}: '{title}', {source}, {date}")
 
-        cleaned_article, header_lenght = fix_header(article)
+        cleaned_article = fix_header(article)
         headers = extract_headers(cleaned_article)
         check_title(title, cleaned_article)
 
@@ -129,7 +129,6 @@ def create_corpus(
             "date": date,
             "toc_line_number": toc[i][3],
             "full_text": article,
-            "header_lenght": header_lenght,
             "header": "\n".join(headers),
             "media": extract_media(headers),
             "pages": extract_pages(headers),
@@ -307,14 +306,14 @@ def extract_media(headers: list[str]) -> str | None:
     return "webb" if "webb" in headers[-1] else "print"
 
 
-def fix_header(article: str) -> tuple[str, int]:
+def fix_header(article: str) -> str:
     """Fix header. Remove empty lines from article header.
 
     Args:
         article (str): Article text.
 
     Returns:
-        tuple[str, int]: Article text and header length.
+        str: Article text without empty lines in the header.
     """
     lines = article.split("\n")
     output_lines: list[str] = []
@@ -329,9 +328,8 @@ def fix_header(article: str) -> tuple[str, int]:
             output_lines.append(line)
 
     article = "\n".join(output_lines)
-    header_lenght = len(str(article).split("\n\n", maxsplit=1)[0].strip().split("\n"))
 
-    return article, header_lenght
+    return article
 
 
 def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = True) -> None:
@@ -413,7 +411,6 @@ def save_articles(document_index: pd.DataFrame, folder: str) -> int:
 
 def main(
     input_folder: str,
-    save_short_headers: bool = False,
     stop_words: str | None = None,
     remove_captions: bool = False,
     remove_copyright: bool = True,
@@ -422,10 +419,9 @@ def main(
 
     Args:
         input_folder (str): Folder with the export files.
-        save_short_headers (bool, optional): Save files with short headers. Defaults to False.
         stop_words (str, optional): Stop words. A string with stop words separated by '|'. Defaults to None.
         remove_captions (bool, optional): Remove captions from article. Defaults to False.
-        remove_copyright (bool, optional): Remove copyright string from article. Defaults to False.
+        remove_copyright (bool, optional): Remove copyright string from article. Defaults to True.
     """
     run: str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     output_folder: str = f"{PROCESSED_FOLDER}/{run}"
@@ -491,15 +487,8 @@ def main(
         saved: int = save_articles(document_index, output_folder)
         logger.success(f"Saved {saved} articles to {output_folder}")
 
-        # save articles with header_lenght < MIN_HEADER_LENGTH to txt files in subfolder "short_headers"
-        if save_short_headers:
-            short_headers_folder: str = f"{output_folder}/short_headers"
-            os.makedirs(short_headers_folder, exist_ok=True)
-            short: int = save_articles(document_index[document_index.header_lenght < MIN_HEADER_LENGTH], short_headers_folder)
-            logger.success(f"Saved {short} articles with short headers to {short_headers_folder}")
-
         # Save document_index to csv
-        document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "header_lenght"])
+        document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
         document_index.to_csv(f"{log_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
         logger.success(f"Saved document_index to {log_folder}/document_index.csv")
     finally:
