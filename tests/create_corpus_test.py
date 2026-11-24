@@ -141,6 +141,8 @@ def test_create_corpus_applies_stop_words_and_caption_removal(caplog: Any) -> No
     assert "Ledare:" not in text
     assert "Bild:" not in text
     assert corpus["url"][0] == "https://a.se"
+    # the caller is told once per export that captions are only cut where the export ends them
+    assert "Removing captions should be done with care" in caplog.text
     assert "Missing values in df" not in caplog.text
 
 

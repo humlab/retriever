@@ -112,6 +112,11 @@ def create_corpus(
     if len(toc) != len(articles):
         raise ValueError(f"{len(toc)} table of contents entries but {len(articles)} articles — the export does not line up")
 
+    if remove_captions:
+        logger.warning(
+            "Removing captions from article should be done with care, as some credits may be glued to the text and not easily separable."
+        )
+
     rows: list[dict[str, object]] = []
     for i, article in enumerate(articles):
         title, source, date = toc[i][0], toc[i][1], toc[i][2]
