@@ -329,18 +329,12 @@ def fix_header(article: str) -> str:
     return article
 
 
-def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = True) -> None:
+def log_diffs(duplicates: pd.DataFrame) -> None:
     """Log differences between duplicates.
 
     Args:
         duplicates (pd.DataFrame): DataFrame with duplicates.
-        output_folder (str): Output folder.
-        save_diffs (bool, optional): Save differences to file. Defaults to True.
     """
-    diff_folder = f"{output_folder}/diff"
-    if save_diffs:
-        os.makedirs(diff_folder, exist_ok=True)
-
     # Identify duplicates
     diff_articles = duplicates[~duplicates.duplicated(subset=["document_name", "source", "date", "media", "article_text"], keep=False)]
 
@@ -354,10 +348,6 @@ def log_diffs(duplicates: pd.DataFrame, output_folder: str, save_diffs: bool = T
             diff = difflib.ndiff(texts[i - 1].splitlines(), texts[i].splitlines())
             diff_text = "\n".join(diff)
             logger.info(f"Differences for {name}:\n{diff_text}")
-            # save diff_text to file
-            if save_diffs:
-                with open(f"{diff_folder}/{name[0]}_{name[1]}_{name[2]}_{name[3]}_{i - 1}.diff", "w", encoding="utf-8") as f:
-                    f.write(diff_text)
 
 
 def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
@@ -456,7 +446,7 @@ def main(
         logger.info(f"Found {len(duplicates)} non-unique articles")
 
         # Log differences between duplicates
-        log_diffs(duplicates, log_folder, save_diffs=False)
+        log_diffs(duplicates)
 
         # Save duplicates to csv
         def join_urls(urls: Any) -> str:

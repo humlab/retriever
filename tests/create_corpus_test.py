@@ -200,8 +200,8 @@ def fixture_duplicates() -> pd.DataFrame:
     )
 
 
-def test_log_diffs(caplog: Any, duplicates: pd.DataFrame, tmp_path: Path) -> None:
-    retriever.create_corpus.log_diffs(duplicates, output_folder=str(tmp_path), save_diffs=False)
+def test_log_diffs(caplog: Any, duplicates: pd.DataFrame) -> None:
+    retriever.create_corpus.log_diffs(duplicates)
 
     assert caplog.text
 
@@ -210,18 +210,6 @@ def test_log_diffs(caplog: Any, duplicates: pd.DataFrame, tmp_path: Path) -> Non
     assert "INFO" in caplog.text
     assert caplog.text.count("INFO") == 1
     assert expected_output in caplog.text
-
-
-def test_log_diffs_save_diffs(duplicates: pd.DataFrame, tmp_path: Path) -> None:
-    retriever.create_corpus.log_diffs(duplicates, output_folder=str(tmp_path), save_diffs=True)
-
-    expected_output = {
-        "filename": "Document_20201204_webb_Source_2020-12-04_webb_0.diff",
-        "content": "- Text.\n+ nDifferent text.",
-    }
-
-    with open(tmp_path / "diff" / expected_output["filename"], "r", encoding="utf-8") as file:
-        assert file.read() == expected_output["content"]
 
 
 @pytest.fixture(name="article_text")
