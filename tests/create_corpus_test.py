@@ -69,7 +69,7 @@ def fixture_corpus() -> pd.DataFrame:
 
 
 def test_get_toc(input_file: Any) -> None:
-    toc, offset = retriever.create_corpus.get_toc(input_file, "Innehållsförteckning:", 2)
+    toc, offset = retriever.create_corpus.get_toc(input_file, "Innehållsförteckning:")
 
     expected_toc: list[list[str | int]] = [
         ["Title One", "Source One", "2020-12-04 05:26", 6],
@@ -82,7 +82,7 @@ def test_get_toc(input_file: Any) -> None:
 
 
 def test_get_articles(input_file: Any) -> None:
-    _, offset = retriever.create_corpus.get_toc(input_file, "Innehållsförteckning:", 2)
+    _, offset = retriever.create_corpus.get_toc(input_file, "Innehållsförteckning:")
     articles = retriever.create_corpus.get_articles(input_file, offset)
 
     expected_articles = [
@@ -94,7 +94,7 @@ def test_get_articles(input_file: Any) -> None:
 
 
 def test_create_corpus(input_file: Any, expected_corpus: pd.DataFrame) -> None:
-    toc, offset = retriever.create_corpus.get_toc(input_file, "Innehållsförteckning:", 2)
+    toc, offset = retriever.create_corpus.get_toc(input_file, "Innehållsförteckning:")
     articles = retriever.create_corpus.get_articles(input_file, offset)
     corpus = retriever.create_corpus.create_corpus(toc, articles)
 
@@ -148,7 +148,7 @@ def test_get_toc_warns_about_unparsed_line(tmp_path: Path, caplog: Any) -> None:
     file = tmp_path / "input.txt"
     file.write_text("Innehållsförteckning:\n\n> A Title, A Source, 2020-12-04 05:26\n> B Title, B Source\n\nend\n")
 
-    toc, _ = retriever.create_corpus.get_toc(str(file), "Innehållsförteckning:", 2)
+    toc, _ = retriever.create_corpus.get_toc(str(file), "Innehållsförteckning:")
 
     assert [entry[0] for entry in toc] == ["A Title"]
     assert "WARNING" in caplog.text
@@ -314,6 +314,21 @@ def run_main(folder: Path, **flags: Any) -> tuple[Path, Path]:
     return newest_run(folder / "processed"), newest_run(folder / "logs")
 
 
+def test_main_reads_a_table_of_contents_under_another_name(tmp_path: Path) -> None:
+    (tmp_path / "export.txt").write_text(
+        "Innehåll:\n"
+        "\n"
+        "> Title One, Source One, 2020-12-04 05:26\n"
+        "\n\n"
+        "Title One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nText one.\n",
+        encoding="utf-8",
+    )
+
+    articles, _logs = run_main(tmp_path, toc_name="Innehåll:")
+
+    assert [f.name for f in articles.iterdir()] == ["source_one_title_one_202012040526_webb.txt"]
+
+
 def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, caplog: Any) -> None:
     (tmp_path / "export.txt").write_text(
         "Innehållsförteckning:\n"
@@ -428,7 +443,7 @@ def test_get_articles_starts_below_the_last_toc_line(tmp_path: Path) -> None:
             encoding="utf-8",
         )
 
-        toc, offset = retriever.create_corpus.get_toc(str(file), "Innehållsförteckning:", 2)
+        toc, offset = retriever.create_corpus.get_toc(str(file), "Innehållsförteckning:")
 
         assert [entry[0] for entry in toc] == ["Title One"]
         assert retriever.create_corpus.get_articles(str(file), offset) == [article], f"{blank_lines} blank lines"

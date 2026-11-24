@@ -9,17 +9,17 @@ import typer
 from loguru import logger
 
 MIN_HEADER_LENGTH = 3
+MAX_NOT_MATCHED_LINES = 2  # lines without a ">" in a row, after the toc, before the toc is taken to be over
 PROCESSED_FOLDER = "data/processed"  # article text, one subfolder per run
 LOGS_FOLDER = "data/logs"  # run.log and the csv files, one subfolder per run
 
 
-def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[list[list[int | str | Any]], int]:
+def get_toc(filename: str, toc_name: str) -> tuple[list[list[int | str | Any]], int]:
     """Extracts the table of contents from a Retriever export file.
 
     Args:
         filename (str): Input file.
         toc_name (str): Name of the table of contents.
-        max_not_matched_lines (int): Number of lines not starting with '>' to read before breaking.
 
     Returns:
         tuple[list[list[int | str | Any]], int]: Table of contents and the line the articles start on,
@@ -57,8 +57,8 @@ def get_toc(filename: str, toc_name: str, max_not_matched_lines: int) -> tuple[l
                 logger.warning(f"Unparsed toc line {toc_line_number}: {line.strip()!r}")
         else:
             not_matched_lines += 1
-        # Break if more than max_not_matched_lines does not start with >
-        if not_matched_lines > max_not_matched_lines:
+        # Break if more than MAX_NOT_MATCHED_LINES does not start with >
+        if not_matched_lines > MAX_NOT_MATCHED_LINES:
             break
 
     if not data:
@@ -398,6 +398,7 @@ def save_articles(document_index: pd.DataFrame, folder: str) -> int:
 
 def main(
     input_folder: str,
+    toc_name: str = "Innehållsförteckning:",
     stop_words: str | None = None,
     remove_captions: bool = False,
     remove_copyright: bool = True,
@@ -406,6 +407,8 @@ def main(
 
     Args:
         input_folder (str): Folder with the export files.
+        toc_name (str, optional): The words the export writes above its table of contents. Defaults to
+            "Innehållsförteckning:".
         stop_words (str, optional): Stop words. A string with stop words separated by '|'. Defaults to None.
         remove_captions (bool, optional): Remove captions from article. Defaults to False.
         remove_copyright (bool, optional): Remove copyright string from article. Defaults to True.
@@ -425,7 +428,7 @@ def main(
             if not filename.endswith(".txt"):
                 continue
             filepath: str = f"{input_folder}/{filename}"
-            toc, offset = get_toc(filepath, "Innehållsförteckning:", 2)
+            toc, offset = get_toc(filepath, toc_name)
             articles: list[str] = get_articles(filepath, offset)
 
             df: pd.DataFrame = add_document_names(create_corpus(toc, articles, stop_words, remove_captions, remove_copyright), filename)
