@@ -182,9 +182,7 @@ def remove_copyright_string(article: str) -> str:
         logger.warning("Copyright string not in last line")
 
     # the export glues the copyright text to the last line of the article, behind its " |" footer separator
-    article = re.sub(r"(?:\s*\|)*\s*©.*$", "", article).strip()
-
-    return article
+    return re.sub(r"(?:\s*\|)*\s*©.*$", "", article).strip()
 
 
 CREDIT_LABEL = r"(?:Image-text:\s*)?Bild:\s*"
