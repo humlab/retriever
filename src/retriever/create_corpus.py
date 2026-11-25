@@ -10,6 +10,7 @@ from loguru import logger
 
 MIN_HEADER_LENGTH = 3
 MAX_NOT_MATCHED_LINES = 2  # lines without a ">" in a row, after the toc, before the toc is taken to be over
+MAX_TITLE_CHARS = 100  # longest name this makes is 159 characters, against 255 for a name and 260 for a path
 PROCESSED_FOLDER = "data/processed"  # article text, one subfolder per run
 LOGS_FOLDER = "data/logs"  # run.log and the csv files, one subfolder per run
 
@@ -369,11 +370,8 @@ def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
         pd.DataFrame: The same corpus with document_name, filename, year and input_file added.
     """
     corpus["document_name"] = corpus.source.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip()
-    corpus["document_name"] = (
-        corpus.document_name
-        + "_"
-        + corpus.title.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip().str.strip("_").str[:60]
-    )
+    title_slug = corpus.title.fillna("").str.replace(r"\W+", "_", regex=True).str.lower().str.strip().str.strip("_")
+    corpus["document_name"] = corpus.document_name + "_" + title_slug.str[:MAX_TITLE_CHARS]
     corpus["document_name"] = (
         corpus.document_name
         + "_"
@@ -382,6 +380,8 @@ def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
         + corpus.media.fillna("")
     )
     corpus["filename"] = corpus.document_name + ".txt"
+    for title in corpus.title[title_slug.str.len() > MAX_TITLE_CHARS]:
+        logger.debug(f"Title cut to {MAX_TITLE_CHARS} characters: {title!r}")
     corpus["year"] = corpus["date"].str[:4]
     corpus["input_file"] = input_file
     return corpus
@@ -451,7 +451,7 @@ def main(
 
     handler_id: int = logger.add(f"{log_folder}/run.log", level="INFO", encoding="utf8", mode="w")
     if remove_captions:
-        logger.warning("Removing captions should be done with care: a credit glued into the text is not easily separable.")
+        logger.info("Removing captions should be done with care: a credit glued into the text is not easily separable.")
     try:
         all_metadata: list[pd.DataFrame] = []  # List to store all metadata
 

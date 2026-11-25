@@ -324,6 +324,18 @@ def run_main(folder: Path, **flags: Any) -> tuple[Path, Path]:
     return newest_run(folder / "processed"), newest_run(folder / "logs")
 
 
+def test_add_document_names_cuts_a_long_title_and_says_so(caplog: Any) -> None:
+    long_title = "L" + "å" * 129  # the slug is the title lowercased and spaced with underscores
+    corpus = pd.DataFrame([{"title": long_title, "source": "Source", "date": "2020-12-04 05:26", "media": "webb"}])
+
+    named = retriever.create_corpus.add_document_names(corpus, "export.txt")
+
+    assert named.filename[0] == "source_" + "l" + "å" * 99 + "_202012040526_webb.txt"
+    assert [(r.levelname, r.getMessage()) for r in caplog.records if "Title cut" in r.getMessage()] == [
+        ("DEBUG", f"Title cut to {retriever.create_corpus.MAX_TITLE_CHARS} characters: {long_title!r}")
+    ]
+
+
 def test_main_reads_a_table_of_contents_under_another_name(tmp_path: Path) -> None:
     (tmp_path / "export.txt").write_text(
         "Innehåll:\n"
