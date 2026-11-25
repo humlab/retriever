@@ -63,6 +63,8 @@ def fixture_corpus() -> pd.DataFrame:
             "pages": {0: None, 1: None},
             "url": {0: None, 1: None},
             "article_text": {0: "Text one.", 1: "Text two."},
+            "credits": {0: 0, 1: 0},
+            "credits_left": {0: 0, 1: 0},
             "date_time": {0: Timestamp("2020-12-04 05:26:00"), 1: Timestamp("2023-12-04 04:32:00")},
         }
     )
@@ -142,7 +144,6 @@ def test_create_corpus_applies_stop_words_and_caption_removal(caplog: Any) -> No
     assert "Bild:" not in text
     assert corpus["url"][0] == "https://a.se"
     # the caller is told once per export that captions are only cut where the export ends them
-    assert "Removing captions should be done with care" in caplog.text
     assert "Missing values in df" not in caplog.text
 
 
@@ -209,9 +210,16 @@ def test_log_diffs(caplog: Any, duplicates: pd.DataFrame) -> None:
 
     expected_output = "Differences for ('Document_20201204_webb', 'Source', '2020-12-04', 'webb'):\n- Text.\n+ nDifferent text."
 
-    assert "INFO" in caplog.text
-    assert caplog.text.count("INFO") == 1
+    # the diff bodies are detail, so the default level is one run.log does not keep
+    assert "DEBUG" in caplog.text
+    assert caplog.text.count("DEBUG") == 1
     assert expected_output in caplog.text
+
+
+def test_log_diffs_takes_another_level(caplog: Any, duplicates: pd.DataFrame) -> None:
+    retriever.create_corpus.log_diffs(duplicates, level="WARNING")
+
+    assert caplog.text.count("WARNING") == 1
 
 
 @pytest.fixture(name="article_text")
@@ -331,6 +339,30 @@ def test_main_reads_a_table_of_contents_under_another_name(tmp_path: Path) -> No
     assert [f.name for f in articles.iterdir()] == ["source_one_title_one_202012040526_webb.txt"]
 
 
+def test_main_reports_how_many_credits_it_could_cut(tmp_path: Path, caplog: Any) -> None:
+    separator = "=" * 78
+    (tmp_path / "export.txt").write_text(
+        "Innehållsförteckning:\n"
+        "\n"
+        "> Cut One, Source One, 2020-12-04 05:26\n"
+        "\n"
+        "> Kept One, Source One, 2020-12-04 05:26\n"
+        "\n\n"
+        "Cut One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nBild: Namn Namnsson/TT\n\nBrödtext.\n"
+        f"\n{separator}\n\n"
+        "Kept One\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nBild: Namn Namnsson ligger bakom.\n\nBrödtext.\n",
+        encoding="utf-8",
+    )
+
+    run_main(tmp_path, remove_captions=True)
+
+    assert "Run summary: 2 articles read, 2 saved" in caplog.text
+    assert "1 of 2 credits cut (50.0 %)" in caplog.text
+    assert "Removing captions should be done with care" in caplog.text
+    assert "Captions not recognised in export.txt: 1" in caplog.text
+    assert ", 2 with missing values" in caplog.text
+
+
 def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, caplog: Any) -> None:
     (tmp_path / "export.txt").write_text(
         "Innehållsförteckning:\n"
@@ -391,7 +423,7 @@ def fixture_export_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_main_writes_articles_and_index(export_dir: Path) -> None:
+def test_main_writes_articles_and_index(export_dir: Path, caplog: Any) -> None:
     output, logs = run_main(export_dir)
 
     saved = sorted(f.name for f in output.iterdir() if f.suffix == ".txt")
@@ -401,6 +433,7 @@ def test_main_writes_articles_and_index(export_dir: Path) -> None:
         "source_one_article_two_202012050900_webb.txt",
     ]
     assert (output / saved[0]).read_text(encoding="utf-8") == "Article One\n\nText One."
+    assert "Run summary: 3 articles read, 3 saved" in caplog.text
 
     index = pd.read_csv(logs / "document_index.csv", sep=";", dtype={"year": str})  # year is a label in the file
     assert list(index.columns) == [
@@ -506,14 +539,14 @@ def test_remove_copyright_string_drops_the_footer_separator() -> None:
 def test_remove_copyright_string_tells_an_article_without_one_apart(caplog: Any) -> None:
     retriever.create_corpus.remove_copyright_string("Bara brödtext.")
 
-    assert "No copyright string in article" in caplog.text
+    assert "No copyright string in article: 'Bara brödtext.'" in caplog.text
     assert "Copyright string not in last line" not in caplog.text
 
 
 def test_remove_copyright_string_warns_when_it_is_not_in_the_last_line(caplog: Any) -> None:
     article = retriever.create_corpus.remove_copyright_string("Första raden med © Tidsskrift.\nSista raden.")
 
-    assert "Copyright string not in last line" in caplog.text
+    assert "Copyright string not in last line of article: 'Första raden med © Tidsskrift.'" in caplog.text
     # the match runs to the end of the text, so a copyright string on an earlier line is left in place
     assert article == "Första raden med © Tidsskrift.\nSista raden."
 
@@ -543,7 +576,10 @@ def test_remove_captions_from_article_keeps_a_credit_glued_to_the_body(caplog: A
     glued = "Bild: Nam Namnsson någonting någonting. Brödtext."
 
     assert retriever.create_corpus.remove_captions_from_article(glued) == glued
-    assert f"Caption not recognised: {glued}" in caplog.text
+    # the line stays in the corpus, so the detail is for DEBUG; run.log gets one counted line per export from main
+    assert [(r.levelname, r.getMessage()) for r in caplog.records if "Caption not recognised" in r.getMessage()] == [
+        ("DEBUG", f"Caption not recognised: {glued}")
+    ]
 
 
 def test_cli_hands_main_to_typer(monkeypatch: pytest.MonkeyPatch) -> None:

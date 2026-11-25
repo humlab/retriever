@@ -112,11 +112,6 @@ def create_corpus(
     if len(toc) != len(articles):
         raise ValueError(f"{len(toc)} table of contents entries but {len(articles)} articles — the export does not line up")
 
-    if remove_captions:
-        logger.warning(
-            "Removing captions from article should be done with care, as some credits may be glued to the text and not easily separable."
-        )
-
     rows: list[dict[str, object]] = []
     for i, article in enumerate(articles):
         title, source, date = toc[i][0], toc[i][1], toc[i][2]
@@ -145,7 +140,10 @@ def create_corpus(
         if stop_words:
             cleaned_article = remove_stop_words_from_article(cleaned_article, stop_words)
 
+        credits = len(re.findall(CREDIT_LABEL, cleaned_article)) if remove_captions else 0
         cleaned_article = remove_captions_from_article(cleaned_article) if remove_captions else cleaned_article
+        # counted on both sides of the cut, so main can say how many credits were too glued to separate
+        credits_left = len(re.findall(CREDIT_LABEL, cleaned_article)) if remove_captions else 0
 
         cleaned_article = remove_copyright_string(cleaned_article) if remove_copyright else cleaned_article
 
@@ -159,6 +157,8 @@ def create_corpus(
             logger.warning(f"Empty article body: '{title}' ({source}, {date})")
 
         row["article_text"] = cleaned_article
+        row["credits"] = credits
+        row["credits_left"] = credits_left
         rows.append(row)
 
     corpus = pd.DataFrame(rows)
@@ -181,10 +181,12 @@ def remove_copyright_string(article: str) -> str:
     """
     logger.debug("Removing copyright string")
 
+    # line 1 is the title in an export article, so the two warnings below name the article they are about
+    title = article.partition("\n")[0]
     if "©" not in article:
-        logger.warning("No copyright string in article")
+        logger.warning(f"No copyright string in article: {title!r}")
     elif "©" not in article.rsplit("\n", maxsplit=1)[-1]:
-        logger.warning("Copyright string not in last line")
+        logger.warning(f"Copyright string not in last line of article: {title!r}")
 
     # the export glues the copyright text to the last line of the article, behind its " |" footer separator
     return re.sub(r"(?:\s*\|)*\s*©.*$", "", article).strip()
@@ -214,7 +216,7 @@ def remove_captions_from_article(article: str) -> str:
     for line in article.split("\n"):
         match = CREDIT.search(line)
         if match is None and "Bild:" in line:
-            logger.warning(f"Caption not recognised: {line}")
+            logger.debug(f"Caption not recognised: {line}")
         cut = (line[: match.start()] + line[match.end() :].lstrip()).rstrip() if match else line
         lines.append(cut)
     return "\n".join(lines).strip()
@@ -334,11 +336,12 @@ def fix_header(article: str) -> str:
     return article
 
 
-def log_diffs(duplicates: pd.DataFrame) -> None:
+def log_diffs(duplicates: pd.DataFrame, level: str = "DEBUG") -> None:
     """Log differences between duplicates.
 
     Args:
         duplicates (pd.DataFrame): DataFrame with duplicates.
+        level (str, optional): Level to report the differences at. Defaults to "DEBUG".
     """
     # Identify duplicates
     diff_articles = duplicates[~duplicates.duplicated(subset=["document_name", "source", "date", "media", "article_text"], keep=False)]
@@ -352,7 +355,7 @@ def log_diffs(duplicates: pd.DataFrame) -> None:
         for i in range(1, len(texts)):
             diff = difflib.ndiff(texts[i - 1].splitlines(), texts[i].splitlines())
             diff_text = "\n".join(diff)
-            logger.info(f"Differences for {name}:\n{diff_text}")
+            logger.log(level, f"Differences for {name}:\n{diff_text}")
 
 
 def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
@@ -401,6 +404,28 @@ def save_articles(document_index: pd.DataFrame, folder: str) -> int:
     return len([name for name in os.listdir(folder) if name.endswith(".txt")])
 
 
+def run_summary(index: pd.DataFrame, read: int, saved: int, output_folder: str, remove_captions: bool) -> str:
+    """One line about what the run did, at a level run.log keeps.
+
+    Args:
+        index (pd.DataFrame): The index while its internal columns are still there, so the credit counts can be read.
+        read (int): Articles read, before duplicates were dropped.
+        saved (int): Article files written.
+        output_folder (str): Folder the articles were written to.
+        remove_captions (bool): Whether captions were removed from the articles.
+
+    Returns:
+        str: The summary line.
+    """
+    credits_part = ""
+    if remove_captions and (seen := int(index.credits.sum())) > 0:
+        cut: int = seen - int(index.credits_left.sum())
+        credits_part = f", {cut} of {seen} credits cut ({cut / seen * 100:.1f} %)"
+
+    missing: int = int(index.drop(columns=["pages", "media"]).isnull().any(axis=1).sum())
+    return f"Run summary: {read} articles read, {saved} saved to {output_folder}, {missing} with missing values{credits_part}"
+
+
 def main(
     input_folder: str,
     toc_name: str = "Innehållsförteckning:",
@@ -424,7 +449,9 @@ def main(
     os.makedirs(output_folder, exist_ok=True)
     os.makedirs(log_folder, exist_ok=True)
 
-    handler_id: int = logger.add(f"{log_folder}/run.log", level="WARNING", encoding="utf8", mode="w")
+    handler_id: int = logger.add(f"{log_folder}/run.log", level="INFO", encoding="utf8", mode="w")
+    if remove_captions:
+        logger.warning("Removing captions should be done with care: a credit glued into the text is not easily separable.")
     try:
         all_metadata: list[pd.DataFrame] = []  # List to store all metadata
 
@@ -436,7 +463,11 @@ def main(
             toc, offset = get_toc(filepath, toc_name)
             articles: list[str] = get_articles(filepath, offset)
 
-            df: pd.DataFrame = add_document_names(create_corpus(toc, articles, stop_words, remove_captions, remove_copyright), filename)
+            corpus = create_corpus(toc, articles, stop_words, remove_captions, remove_copyright)
+            if remove_captions and (left := int(corpus.credits_left.sum())) > 0:
+                logger.debug(f"Captions not recognised in {filename}: {left}")
+
+            df: pd.DataFrame = add_document_names(corpus, filename)
 
             all_metadata.append(df)
 
@@ -447,6 +478,8 @@ def main(
         document_index: pd.DataFrame = pd.concat(all_metadata, ignore_index=True)
         logger.info(f"Found {len(document_index)} articles")
         document_index["document_id"] = document_index.index
+
+        read: int = len(document_index)
 
         # Check for duplicates
         not_unique = document_index.duplicated(subset=["document_name", "source", "date", "media"], keep=False)
@@ -481,11 +514,14 @@ def main(
         # Save articles to txt files
         saved: int = save_articles(document_index, output_folder)
         logger.success(f"Saved {saved} articles to {output_folder}")
+        summary = run_summary(document_index, read, saved, output_folder, remove_captions)
 
         # Save document_index to csv
-        document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number"])
+        document_index = document_index.drop(columns=["article_text", "full_text", "header", "toc_line_number", "credits", "credits_left"])
         document_index.to_csv(f"{log_folder}/document_index.csv", index=False, sep=";", encoding="utf-8-sig")
         logger.success(f"Saved document_index to {log_folder}/document_index.csv")
+        # one line about the whole run, at the level run.log keeps
+        logger.info(summary)
     finally:
         logger.remove(handler_id)
 
