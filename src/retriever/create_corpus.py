@@ -359,6 +359,49 @@ def log_diffs(duplicates: pd.DataFrame, level: str = "DEBUG") -> None:
             logger.log(level, f"Differences for {name}:\n{diff_text}")
 
 
+def deduplicate(document_index: pd.DataFrame, log_folder: str) -> pd.DataFrame:
+    """Collapse copies of one article, write what the copies differ in, and hand back the rows that get saved.
+
+    Args:
+        document_index (pd.DataFrame): The whole index, one row per article read.
+        log_folder (str): Folder duplicates.csv is written to.
+
+    Returns:
+        pd.DataFrame: One row per article, each carrying the urls of every copy in its group.
+    """
+    keys = ["document_name", "source", "date", "media"]
+    duplicates: pd.DataFrame = document_index[document_index.duplicated(subset=keys, keep=False)]
+    logger.info(f"Found {len(duplicates)} non-unique articles")
+
+    # Log differences between duplicates
+    log_diffs(duplicates)
+
+    # Save duplicates to csv
+    def join_urls(urls: Any) -> str:
+        return ", ".join(url for url in urls if url)  # url is None when the export has no url, so it is skipped
+
+    duplicates = duplicates.groupby(keys).agg(urls=("url", join_urls), count=("url", "size")).reset_index()
+    duplicates.to_csv(f"{log_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
+
+    # Punctuation is stripped from document_name, so two different articles can collide on one file;
+    # duplicates.csv does not cover that. The number belongs in run.log, the names are for a DEBUG run.
+    texts_per_name = document_index.groupby("document_name")["article_text"].nunique()
+    collided: list[Any] = list(texts_per_name[texts_per_name > 1].index)
+    for name in collided:
+        logger.debug(f"Different articles share the file '{name}.txt'; only the last one was saved")
+    if collided:
+        logger.warning(f"Filename collisions: {len(collided)}, the names are at DEBUG")
+
+    # The last article of a group is kept, and takes the urls of the copies that are not saved
+    document_index = document_index.drop_duplicates(subset=keys, keep="last")
+    merged = document_index.merge(duplicates[keys + ["urls"]], on=keys, how="left")
+    # a kept row is part of its group, so the group's urls already include its own; rows outside a group keep theirs
+    group_urls = merged.urls.fillna("")
+    document_index["url"] = [group if group else url for url, group in zip(document_index.url, group_urls)]
+    logger.info(f"Removed {duplicates['count'].sum() - len(duplicates)} duplicates")
+    return document_index
+
+
 def add_document_names(corpus: pd.DataFrame, input_file: str) -> pd.DataFrame:
     """Add the columns that say where an article is saved and which copies count as one article.
 
@@ -481,34 +524,7 @@ def main(
 
         read: int = len(document_index)
 
-        # Check for duplicates
-        not_unique = document_index.duplicated(subset=["document_name", "source", "date", "media"], keep=False)
-        duplicates: pd.DataFrame = document_index[not_unique]
-        logger.info(f"Found {len(duplicates)} non-unique articles")
-
-        # Log differences between duplicates
-        log_diffs(duplicates)
-
-        # Save duplicates to csv
-        def join_urls(urls: Any) -> str:
-            return ", ".join(url for url in urls if url)  # url is None when the export has no url, so it is skipped
-
-        duplicates = (
-            duplicates.groupby(["document_name", "source", "date", "media"])
-            .agg(urls=("url", join_urls), count=("url", "size"))
-            .reset_index()
-        )
-        duplicates.to_csv(f"{log_folder}/duplicates.csv", index=False, sep=";", encoding="utf-8-sig")
-
-        # Punctuation is stripped from document_name, so two different articles can collide on one file;
-        # duplicates.csv does not cover that
-        texts_per_name = document_index.groupby("document_name")["article_text"].nunique()
-        for name in texts_per_name[texts_per_name > 1].index:
-            logger.warning(f"Different articles share the file '{name}.txt'; only the last one was saved")
-
-        # Remove duplicates. Keep the last article.
-        document_index = document_index.drop_duplicates(subset=["document_name", "source", "date", "media"], keep="last")
-        logger.info(f"Removed {duplicates['count'].sum() - len(duplicates)} duplicates")
+        document_index = deduplicate(document_index, log_folder)
         logger.info(f"Saving {len(document_index)} unique articles")
 
         # Save articles to txt files

@@ -394,8 +394,9 @@ def test_main_warns_when_different_articles_share_a_filename(tmp_path: Path, cap
 
     articles, logs = run_main(tmp_path)
 
-    assert "WARNING" in caplog.text
-    assert "Different articles share the file" in caplog.text
+    # one counted line says it in run.log, the name of the colliding file is DEBUG detail
+    assert "Filename collisions: 1, the names are at DEBUG" in caplog.text
+    assert [r.levelname for r in caplog.records if "Different articles share the file" in r.getMessage()] == ["DEBUG"]
     saved = [f for f in articles.iterdir() if f.suffix == ".txt"]
     assert len(saved) == 1
     assert "Text two." in saved[0].read_text(encoding="utf-8")
@@ -433,6 +434,26 @@ def fixture_export_dir(tmp_path: Path) -> Path:
     (tmp_path / "a_export.txt").write_text(two, encoding="utf-8")
     (tmp_path / "b_export.txt").write_text(one, encoding="utf-8")
     return tmp_path
+
+
+def test_main_keeps_the_urls_of_the_copies_it_drops(tmp_path: Path) -> None:
+    """The dropped copies live only in duplicates.csv, so the kept article has to carry their urls too."""
+    article = "Blixten\nSource One, 2020-12-04 05:26\nPublicerat på webb.\n\nText.\nLäs hela artikeln på {}"
+    (tmp_path / "export.txt").write_text(
+        "Innehållsförteckning:\n\n> Blixten, Source One, 2020-12-04 05:26\n\n> Blixten, Source One, 2020-12-04 05:26\n\n\n"
+        + article.format("https://a.se")
+        + "\n\n"
+        + "=" * 78
+        + "\n\n"
+        + article.format("https://b.se"),
+        encoding="utf-8",
+    )
+
+    _articles, logs = run_main(tmp_path)
+
+    index = pd.read_csv(logs / "document_index.csv", sep=";", dtype={"year": str})
+    assert len(index) == 1
+    assert index.url[0] == "https://a.se, https://b.se"
 
 
 def test_main_writes_articles_and_index(export_dir: Path, caplog: Any) -> None:
